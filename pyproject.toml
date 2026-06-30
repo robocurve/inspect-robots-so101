@@ -25,7 +25,13 @@ dependencies = ["robolens>=0.1", "numpy>=1.24"]
 [project.optional-dependencies]
 # Real SO-ARM driver + in-process LeRobot policy inference (torch + the checkpoint).
 # `lerobot[feetech]` pulls the Feetech motor bus the SO follower uses.
-lerobot = ["lerobot[feetech]>=0.5"]
+#
+# LeRobot itself requires Python >=3.12, so this extra is marker-gated: on 3.10/3.11
+# it resolves to nothing (the package still installs and `import robolens_soarm`
+# works — you just can't run real hardware/inference there). The marker also keeps
+# uv's universal resolution solvable across the 3.10+ `requires-python` range, so
+# `uv run`/`uv sync` don't choke on the 3.11 split in CI.
+lerobot = ["lerobot[feetech]>=0.5; python_version >= '3.12'"]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
