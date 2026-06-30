@@ -1,0 +1,109 @@
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"
+
+[project]
+name = "robolens-soarm"
+version = "0.1.0"
+description = "RoboLens adapters for LeRobot SO-ARM followers (SO-100/SO-101) driven by LeRobot policies."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "RoboCurve" }]
+keywords = ["robotics", "vla", "so-arm", "so100", "so101", "lerobot", "robolens"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
+dependencies = ["robolens>=0.1", "numpy>=1.24"]
+
+[project.optional-dependencies]
+# Real SO-ARM driver + in-process LeRobot policy inference (torch + the checkpoint).
+# `lerobot[feetech]` pulls the Feetech motor bus the SO follower uses.
+lerobot = ["lerobot[feetech]>=0.5"]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "pre-commit>=3.5",
+    # numpy 2.5.0's type stubs use 3.12-only syntax that mypy (python_version 3.10)
+    # rejects; pin the 2.4.x line for a deterministic dev/CI gate (runtime is free).
+    "numpy<2.5",
+]
+
+[project.urls]
+Homepage = "https://github.com/robocurve/robolens-soarm"
+Framework = "https://github.com/robocurve/robolens"
+LeRobot = "https://github.com/huggingface/lerobot"
+
+# robolens isn't on PyPI yet — resolve from a tagged GitHub release. lerobot IS on
+# PyPI (the `lerobot` extra above). This is uv-only metadata (stripped from wheels).
+# For local dev against a sibling robolens checkout: uv pip install -e ../robolens
+[tool.uv.sources]
+robolens = { git = "https://github.com/robocurve/robolens", tag = "v0.1.0" }
+
+# RoboLens discovers these by entry point — no import needed for `robolens list`.
+[project.entry-points."robolens.embodiments"]
+so_arm = "robolens_soarm.embodiment:SOArmEmbodiment"
+
+[project.entry-points."robolens.policies"]
+lerobot = "robolens_soarm.policy:LeRobotPolicy"
+
+[project.scripts]
+robolens-soarm-preflight = "robolens_soarm.preflight:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/robolens_soarm"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/robolens_soarm", "tests", "README.md"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["robolens_soarm"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["src/robolens_soarm"]
+
+# torch / lerobot are lazily imported behind pragma'd seams and are not test deps;
+# silence mypy's missing-import errors for them (mirrors robolens-isaacsim).
+[[tool.mypy.overrides]]
+module = ["torch.*", "lerobot.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+
+[tool.coverage.run]
+branch = true
+source = ["robolens_soarm"]
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "@(abc\\.)?abstractmethod",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "^\\s*\\.\\.\\.$",
+    ": \\.\\.\\.$",
+    "pragma: no cover",
+]
