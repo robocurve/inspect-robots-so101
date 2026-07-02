@@ -24,8 +24,11 @@ dependencies = ["inspect-robots>=0.3", "numpy>=1.24"]
 
 [project.optional-dependencies]
 # Real SO-ARM driver + in-process LeRobot policy inference (torch + the checkpoint).
-# `lerobot[feetech]` pulls the Feetech motor bus the SO follower uses.
-lerobot = ["lerobot[feetech]>=0.5"]
+# `lerobot[feetech]` pulls the Feetech motor bus the SO follower uses. lerobot>=0.5
+# requires Python>=3.12, so the extra is gated to 3.12+ (the numpy-only core still
+# imports on 3.10/3.11 — the hardware extra just isn't installable there). Without
+# this marker `uv`'s universal resolution fails on the 3.10/3.11 splits.
+lerobot = ["lerobot[feetech]>=0.5; python_version >= '3.12'"]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
