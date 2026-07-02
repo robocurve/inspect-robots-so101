@@ -6,12 +6,12 @@ from typing import Any
 
 import numpy as np
 import pytest
-from robolens.scene import Scene
-from robolens.types import Observation
+from inspect_robots.scene import Scene
+from inspect_robots.types import Observation
 
-from robolens_soarm import packing
-from robolens_soarm.config import LeRobotPolicyConfig
-from robolens_soarm.policy import LeRobotPolicy
+from inspect_robots_so101 import packing
+from inspect_robots_so101.config import LeRobotPolicyConfig
+from inspect_robots_so101.policy import LeRobotPolicy
 
 
 def _obs(instruction: str | None = "do it") -> Observation:

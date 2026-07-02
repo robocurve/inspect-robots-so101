@@ -1,7 +1,7 @@
 """Preflight: prove an SO-ARM + LeRobot pairing is compatible *before any motion*.
 
-``robolens-soarm-preflight`` constructs the policy and embodiment (no serial
-connection, no model load — only their declared ``.info``), runs RoboLens's
+``inspect-robots-so101-preflight`` constructs the policy and embodiment (no serial
+connection, no model load — only their declared ``.info``), runs Inspect Robots's
 compatibility check, prints the report, and exits non-zero on any error. Pass
 ``--task cubepick-reach`` (or any registered task) to also verify every scene is
 realizable.
@@ -18,13 +18,13 @@ import argparse
 import json
 from collections.abc import Callable
 
-from robolens.compat import CompatibilityReport, check_compatibility
-from robolens.registry import resolve
-from robolens.task import Task
+from inspect_robots.compat import CompatibilityReport, check_compatibility
+from inspect_robots.registry import resolve
+from inspect_robots.task import Task
 
-from robolens_soarm.config import LeRobotPolicyConfig, SOArmConfig
-from robolens_soarm.embodiment import SOArmEmbodiment
-from robolens_soarm.policy import LeRobotPolicy
+from inspect_robots_so101.config import LeRobotPolicyConfig, SOArmConfig
+from inspect_robots_so101.embodiment import SOArmEmbodiment
+from inspect_robots_so101.policy import LeRobotPolicy
 
 CheckFn = Callable[..., CompatibilityReport]
 
@@ -68,7 +68,7 @@ def _format_human(report: CompatibilityReport, *, dry_run: bool) -> str:
 
 def main(argv: list[str] | None = None, *, run: CheckFn | None = None) -> int:
     """CLI entry point. Returns a process exit code (non-zero on compat errors)."""
-    parser = argparse.ArgumentParser(prog="robolens-soarm-preflight")
+    parser = argparse.ArgumentParser(prog="inspect-robots-so101-preflight")
     parser.add_argument(
         "--task", default=None, help="optional task name to check scene realizability"
     )

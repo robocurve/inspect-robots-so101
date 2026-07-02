@@ -1,17 +1,17 @@
-# robolens-soarm — agent guide
+# inspect-robots-so101 — agent guide
 
-RoboLens adapters that let evals run on real **LeRobot SO-ARM followers**
+Inspect Robots adapters that let evals run on real **LeRobot SO-ARM followers**
 (SO-100 / SO-101) driven by **LeRobot policies**. This is a **plugin package** in
-the RoboLens ecosystem — the framework lives in
-[robolens](https://github.com/robocurve/robolens); benchmarks are separate repos
+the Inspect Robots ecosystem — the framework lives in
+[inspect-robots](https://github.com/robocurve/inspect-robots); benchmarks are separate repos
 indexed by [WorldEvals](https://github.com/robocurve/worldevals). It is the
 SO-ARM/LeRobot sibling of
-[robolens-yam](https://github.com/robocurve/robolens-yam) (bimanual YAM +
+[inspect-robots-yam](https://github.com/robocurve/inspect-robots-yam) (bimanual YAM +
 MolmoAct2).
 
 ## The one big idea
 
-RoboLens evals swap two inputs: a `Policy` (VLA brain) and an `Embodiment` (robot
+Inspect Robots evals swap two inputs: a `Policy` (VLA brain) and an `Embodiment` (robot
 body + world). We ship both for one real stack:
 
 - **`lerobot` policy** — wraps a LeRobot checkpoint (ACT / SmolVLA / π0 / …) and
@@ -22,36 +22,36 @@ body + world). We ship both for one real stack:
   module top.
 - **`so_arm` embodiment** — the LeRobot SO follower driver. Its `get_observation`
   already returns both `"<motor>.pos"` floats *and* camera frames, so there is no
-  separate camera reader (a small simplification over robolens-yam).
+  separate camera reader (a small simplification over inspect-robots-yam).
 
 Both declare the **same 6-D `joint_pos` contract** (5 revolute joints + gripper,
 the configured cameras, packed `joint_pos` state). That makes
-`robolens.compat.check_compatibility` pass with zero errors **and** zero warnings
+`inspect_robots.compat.check_compatibility` pass with zero errors **and** zero warnings
 — the property `tests/test_compat.py` locks down.
 
 ## Layout
 
-- `src/robolens_soarm/` — the package (see `src/robolens_soarm/CLAUDE.md`).
+- `src/inspect_robots_so101/` — the package (see `src/inspect_robots_so101/CLAUDE.md`).
 - `tests/` — pytest; everything (driver, cameras, model inference, clock, operator
   stdin) is injected, so the suite needs **no hardware, no GPU, no torch, no
-  lerobot, no stdin**. The end-to-end test uses RoboLens's built-in
+  lerobot, no stdin**. The end-to-end test uses Inspect Robots's built-in
   `cubepick-reach` task so it stays self-contained.
 
 ## Working here
 
 - Dev loop: `uv venv && uv pip install -e ".[dev]"`, `uv run pre-commit install`,
   then `uv run pytest --cov`.
-- **Local install gotcha:** `uv pip install -e ".[dev]"` resolves `robolens` from a
+- **Local install gotcha:** `uv pip install -e ".[dev]"` resolves `inspect-robots` from a
   git tag. To work against a sibling checkout instead:
-  `uv pip install -e ../robolens` (then `uv pip install -e . --no-deps`).
+  `uv pip install -e ../inspect-robots` (then `uv pip install -e . --no-deps`).
 - Gates (all blocking in CI): `ruff check .`, `ruff format --check .`,
   `mypy` (strict), `pytest --cov` at **100%**.
 - **mypy + numpy:** numpy 2.5's stubs use 3.12-only syntax that mypy (py3.10
   target) rejects; the dev extra pins `numpy<2.5` and CI runs mypy on 3.11.
 - **No torch / no lerobot at import.** The model and driver live behind optional
   `lerobot` extras, lazily imported behind `# pragma: no cover` seams; the
-  `import-hygiene` CI job enforces that `import robolens_soarm` works with only
-  `robolens` + `numpy`.
+  `import-hygiene` CI job enforces that `import inspect_robots_so101` works with only
+  `inspect-robots` + `numpy`.
 
 ## Safety invariants (do not weaken)
 
@@ -72,4 +72,4 @@ the configured cameras, packed `joint_pos` state). That makes
 Training/fine-tuning LeRobot policies (that's `huggingface/lerobot`), serving the
 async gRPC `PolicyServer` (we run in process), and **bimanual** SO arms
 (`bi_so_follower`) or non-SO LeRobot robots — this package is single-arm SO-ARM.
-A bimanual sibling would mirror robolens-yam's 14-D packing.
+A bimanual sibling would mirror inspect-robots-yam's 14-D packing.

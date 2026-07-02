@@ -4,8 +4,8 @@ Both configs are frozen dataclasses with defaults that match a stock LeRobot SO
 follower (SO-100 / SO-101) and a SmolVLA checkpoint, so zero-arg construction
 "just works" for `.info` / preflight. Each exposes :meth:`from_kwargs` so the
 adapters accept flat scalar keyword arguments — this is what lets
-``robolens run -P pretrained_path=... -E port=...`` configure them, since the
-RoboLens CLI only forwards scalar ``key=value`` pairs.
+``inspect-robots run -P pretrained_path=... -E port=...`` configure them, since the
+Inspect Robots CLI only forwards scalar ``key=value`` pairs.
 """
 
 from __future__ import annotations
@@ -16,14 +16,14 @@ from typing import Any, TypeVar
 
 import numpy as np
 import numpy.typing as npt
-from robolens.spaces import (
+from inspect_robots.spaces import (
     ActionSemantics,
     Box,
     CameraSpec,
     ObservationSpace,
 )
 
-from robolens_soarm.packing import NUM_JOINTS, STATE_KEY, STATE_SPEC, TOTAL_DIM
+from inspect_robots_so101.packing import NUM_JOINTS, STATE_KEY, STATE_SPEC, TOTAL_DIM
 
 _T = TypeVar("_T", bound="_FromKwargs")
 

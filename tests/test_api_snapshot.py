@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import robolens_soarm
+import inspect_robots_so101
 
 EXPECTED_API = {
     "MOTORS",
@@ -21,21 +21,21 @@ EXPECTED_API = {
 
 
 def test_public_api_matches_all() -> None:
-    assert set(robolens_soarm.__all__) == EXPECTED_API
+    assert set(inspect_robots_so101.__all__) == EXPECTED_API
 
 
 def test_all_names_are_importable() -> None:
-    for name in robolens_soarm.__all__:
-        assert hasattr(robolens_soarm, name), name
+    for name in inspect_robots_so101.__all__:
+        assert hasattr(inspect_robots_so101, name), name
 
 
 def test_version() -> None:
-    assert robolens_soarm.__version__ == "0.1.0"
+    assert inspect_robots_so101.__version__ == "0.3.0"
 
 
 def test_entry_points_resolve_via_registry() -> None:
     # The installed entry points must resolve to our classes.
-    from robolens.registry import resolve
+    from inspect_robots.registry import resolve
 
     pol = resolve("policy", "lerobot")
     emb = resolve("embodiment", "so_arm")

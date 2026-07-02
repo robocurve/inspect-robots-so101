@@ -1,16 +1,16 @@
-"""Goal-closing test: RoboLens is provably compatible with an SO-ARM follower +
+"""Goal-closing test: Inspect Robots is provably compatible with an SO-ARM follower +
 a LeRobot policy — zero errors, zero warnings — and built-in tasks are realizable."""
 
 from __future__ import annotations
 
-from robolens.compat import check_compatibility
-from robolens.policy import PolicyConfig, PolicyInfo
-from robolens.registry import resolve
-from robolens.spaces import ActionSemantics, Box
+from inspect_robots.compat import check_compatibility
+from inspect_robots.policy import PolicyConfig, PolicyInfo
+from inspect_robots.registry import resolve
+from inspect_robots.spaces import ActionSemantics, Box
 
-from robolens_soarm.config import action_box, observation_space
-from robolens_soarm.embodiment import SOArmEmbodiment
-from robolens_soarm.policy import LeRobotPolicy
+from inspect_robots_so101.config import action_box, observation_space
+from inspect_robots_so101.embodiment import SOArmEmbodiment
+from inspect_robots_so101.policy import LeRobotPolicy
 
 
 def test_lerobot_soarm_compatible_no_errors_no_warnings() -> None:

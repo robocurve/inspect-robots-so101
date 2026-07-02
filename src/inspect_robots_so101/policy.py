@@ -1,4 +1,4 @@
-"""``LeRobotPolicy`` — a RoboLens policy backed by a LeRobot checkpoint.
+"""``LeRobotPolicy`` — a Inspect Robots policy backed by a LeRobot checkpoint.
 
 LeRobot policies (ACT, SmolVLA, π0, diffusion, …) are ordinary ``nn.Module``\\ s
 loaded from the Hugging Face Hub and run **in process** on the GPU. Unlike the
@@ -11,7 +11,7 @@ The default ``predict_fn`` (``_default_predict``) lazily builds the policy and i
 pre/post-processors from a pretrained path; it is a ``# pragma: no cover`` seam
 that only runs with real weights on a real device. Tests inject a fake
 ``predict_fn``, so the whole policy is exercised with no torch, no lerobot, and no
-network — and ``import robolens_soarm`` never imports torch.
+network — and ``import inspect_robots_so101`` never imports torch.
 
 The action chunk this policy returns is already in the robot's **native motor
 units** (degrees for the joints, 0..100 for the gripper): LeRobot's postprocessor
@@ -27,12 +27,12 @@ from typing import Any
 
 import numpy as np
 import numpy.typing as npt
-from robolens.policy import PolicyConfig, PolicyInfo
-from robolens.scene import Scene
-from robolens.types import Action, ActionChunk, Observation
+from inspect_robots.policy import PolicyConfig, PolicyInfo
+from inspect_robots.scene import Scene
+from inspect_robots.types import Action, ActionChunk, Observation
 
-from robolens_soarm import packing
-from robolens_soarm.config import LeRobotPolicyConfig, action_box, observation_space
+from inspect_robots_so101 import packing
+from inspect_robots_so101.config import LeRobotPolicyConfig, action_box, observation_space
 
 # A LeRobot-style observation dict -> an (N, action_dim) action-chunk array. Keys:
 # "observation.state", "observation.images.<cam>", and "task" (the instruction).
@@ -81,7 +81,7 @@ def _default_predict(cfg: LeRobotPolicyConfig) -> PredictFn:  # pragma: no cover
 
 
 class LeRobotPolicy:
-    """RoboLens policy wrapping a LeRobot checkpoint for the SO-ARM action space."""
+    """Inspect Robots policy wrapping a LeRobot checkpoint for the SO-ARM action space."""
 
     def __init__(
         self,

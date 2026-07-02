@@ -2,7 +2,7 @@
 scores success — proving the termination_reason -> scorer wiring and chunk replay
 compose (the static compat test cannot show this).
 
-Uses RoboLens's built-in ``cubepick-reach`` task (``success_at_end`` scorer), so
+Uses Inspect Robots's built-in ``cubepick-reach`` task (``success_at_end`` scorer), so
 the suite stays self-contained: no kitchenbench, no lerobot, no torch, no hardware.
 """
 
@@ -11,13 +11,13 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
-from robolens import eval as rl_eval
+from inspect_robots import eval as rl_eval
 
-from robolens_soarm import packing
-from robolens_soarm.config import LeRobotPolicyConfig, SOArmConfig
-from robolens_soarm.embodiment import SOArmEmbodiment
-from robolens_soarm.operator import OperatorIO
-from robolens_soarm.policy import LeRobotPolicy
+from inspect_robots_so101 import packing
+from inspect_robots_so101.config import LeRobotPolicyConfig, SOArmConfig
+from inspect_robots_so101.embodiment import SOArmEmbodiment
+from inspect_robots_so101.operator import OperatorIO
+from inspect_robots_so101.policy import LeRobotPolicy
 
 
 class _FakeDriver:

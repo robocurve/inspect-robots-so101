@@ -1,6 +1,6 @@
-# `robolens_soarm` package — module map
+# `inspect_robots_so101` package — module map
 
-Two RoboLens components + the glue to make them an honest, testable, safe pair.
+Two Inspect Robots components + the glue to make them an honest, testable, safe pair.
 The package is `mypy --strict` clean, ships `py.typed`, and is 100%-covered.
 
 ## Modules
@@ -12,7 +12,7 @@ The package is `mypy --strict` clean, ships `py.typed`, and is 100%-covered.
 | `operator.py` | `OperatorIO` (injectable stdin/stdout) for readiness + success prompts; `default_poll_end` (real TTY poll, `# pragma: no cover`). |
 | `policy.py` | `LeRobotPolicy` — wraps a LeRobot checkpoint. `act()` builds the LeRobot observation (`observation.state`, `observation.images.<cam>`, `task`), runs the injectable `predict_fn`, returns an `ActionChunk`. Real in-process inference is the pragma'd `_default_predict` (lazy torch + lerobot). |
 | `embodiment.py` | `SOArmEmbodiment` — LeRobot SO follower driver. Clamp backstop, optional delta→abs, `SELF_PACED` pacing, operator-keypress success. The driver's `get_observation` yields motor positions **and** cameras. Hardware seam (`_default_driver_factory`) is injected/pragma'd. |
-| `preflight.py` | `build` / `run_preflight` + the `robolens-soarm-preflight` CLI: run the compat check, print, exit non-zero on errors. |
+| `preflight.py` | `build` / `run_preflight` + the `inspect-robots-so101-preflight` CLI: run the compat check, print, exit non-zero on errors. |
 | `__init__.py` | Public API fenced by `__all__` (guarded by `tests/test_api_snapshot.py`). |
 
 ## Key invariants
@@ -24,7 +24,7 @@ The package is `mypy --strict` clean, ships `py.typed`, and is 100%-covered.
 - **Construction is inert:** `__init__` touches no hardware/model/stdin (only
   `.info`). The driver connects, and the model loads, lazily on first use. This is
   what lets the registry (`factories[name]()`) and preflight construct components
-  freely — and keeps `import robolens_soarm` free of torch.
+  freely — and keeps `import inspect_robots_so101` free of torch.
 - **Coverage discipline:** the only uncoverable code is hardware/model/TTY I/O,
   isolated in `# pragma: no cover` seams (`_default_predict`,
   `_default_driver_factory`, `default_poll_end`, the `_require_driver` pre-reset

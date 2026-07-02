@@ -3,15 +3,15 @@ requires = ["hatchling>=1.18"]
 build-backend = "hatchling.build"
 
 [project]
-name = "robolens-soarm"
-version = "0.1.0"
-description = "RoboLens adapters for LeRobot SO-ARM followers (SO-100/SO-101) driven by LeRobot policies."
+name = "inspect-robots-so101"
+version = "0.3.0"
+description = "Inspect Robots adapters for LeRobot SO-ARM followers (SO-100/SO-101) driven by LeRobot policies."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "RoboCurve" }]
-keywords = ["robotics", "vla", "so-arm", "so100", "so101", "lerobot", "robolens"]
+keywords = ["robotics", "vla", "so-arm", "so100", "so101", "lerobot", "inspect-robots"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
@@ -20,7 +20,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Typing :: Typed",
 ]
-dependencies = ["robolens>=0.1", "numpy>=1.24"]
+dependencies = ["inspect-robots>=0.3", "numpy>=1.24"]
 
 [project.optional-dependencies]
 # Real SO-ARM driver + in-process LeRobot policy inference (torch + the checkpoint).
@@ -38,31 +38,31 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/robocurve/robolens-soarm"
-Framework = "https://github.com/robocurve/robolens"
+Homepage = "https://github.com/robocurve/inspect-robots-so101"
+Framework = "https://github.com/robocurve/inspect-robots"
 LeRobot = "https://github.com/huggingface/lerobot"
 
-# robolens isn't on PyPI yet — resolve from a tagged GitHub release. lerobot IS on
+# inspect-robots isn't on PyPI yet — resolve from a tagged GitHub release. lerobot IS on
 # PyPI (the `lerobot` extra above). This is uv-only metadata (stripped from wheels).
-# For local dev against a sibling robolens checkout: uv pip install -e ../robolens
+# For local dev against a sibling inspect-robots checkout: uv pip install -e ../inspect-robots
 [tool.uv.sources]
-robolens = { git = "https://github.com/robocurve/robolens", tag = "v0.1.0" }
+inspect-robots = { git = "https://github.com/robocurve/inspect-robots", tag = "v0.3.0" }
 
-# RoboLens discovers these by entry point — no import needed for `robolens list`.
-[project.entry-points."robolens.embodiments"]
-so_arm = "robolens_soarm.embodiment:SOArmEmbodiment"
+# Inspect Robots discovers these by entry point — no import needed for `inspect-robots list`.
+[project.entry-points."inspect_robots.embodiments"]
+so_arm = "inspect_robots_so101.embodiment:SOArmEmbodiment"
 
-[project.entry-points."robolens.policies"]
-lerobot = "robolens_soarm.policy:LeRobotPolicy"
+[project.entry-points."inspect_robots.policies"]
+lerobot = "inspect_robots_so101.policy:LeRobotPolicy"
 
 [project.scripts]
-robolens-soarm-preflight = "robolens_soarm.preflight:main"
+inspect-robots-so101-preflight = "inspect_robots_so101.preflight:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/robolens_soarm"]
+packages = ["src/inspect_robots_so101"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/robolens_soarm", "tests", "README.md"]
+include = ["src/inspect_robots_so101", "tests", "README.md"]
 
 [tool.ruff]
 line-length = 100
@@ -73,15 +73,15 @@ src = ["src", "tests"]
 select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["robolens_soarm"]
+known-first-party = ["inspect_robots_so101"]
 
 [tool.mypy]
 python_version = "3.10"
 strict = true
-files = ["src/robolens_soarm"]
+files = ["src/inspect_robots_so101"]
 
 # torch / lerobot are lazily imported behind pragma'd seams and are not test deps;
-# silence mypy's missing-import errors for them (mirrors robolens-isaacsim).
+# silence mypy's missing-import errors for them (mirrors inspect-robots-isaacsim).
 [[tool.mypy.overrides]]
 module = ["torch.*", "lerobot.*"]
 ignore_missing_imports = true
@@ -93,7 +93,7 @@ addopts = "-ra --strict-markers"
 
 [tool.coverage.run]
 branch = true
-source = ["robolens_soarm"]
+source = ["inspect_robots_so101"]
 
 [tool.coverage.report]
 fail_under = 100

@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from robolens_soarm import packing
+from inspect_robots_so101 import packing
 
 
 def test_constants() -> None:

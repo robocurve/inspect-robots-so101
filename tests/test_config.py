@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import pytest
-from robolens.spaces import CameraSpec
+from inspect_robots.spaces import CameraSpec
 
-from robolens_soarm.config import (
+from inspect_robots_so101.config import (
     DEFAULT_CAMERAS,
     LeRobotPolicyConfig,
     SOArmConfig,

@@ -6,14 +6,14 @@ from typing import Any
 
 import numpy as np
 import pytest
-from robolens.embodiment import SELF_PACED
-from robolens.scene import Scene
-from robolens.types import Action
+from inspect_robots.embodiment import SELF_PACED
+from inspect_robots.scene import Scene
+from inspect_robots.types import Action
 
-from robolens_soarm import packing
-from robolens_soarm.config import SOArmConfig
-from robolens_soarm.embodiment import SOArmEmbodiment
-from robolens_soarm.operator import OperatorIO
+from inspect_robots_so101 import packing
+from inspect_robots_so101.config import SOArmConfig
+from inspect_robots_so101.embodiment import SOArmEmbodiment
+from inspect_robots_so101.operator import OperatorIO
 
 
 class FakeDriver:

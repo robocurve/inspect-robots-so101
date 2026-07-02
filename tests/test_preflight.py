@@ -5,12 +5,12 @@ from __future__ import annotations
 import json
 
 import pytest
-from robolens.compat import CompatibilityReport, CompatIssue
-from robolens.policy import PolicyConfig, PolicyInfo
-from robolens.spaces import ActionSemantics, Box
+from inspect_robots.compat import CompatibilityReport, CompatIssue
+from inspect_robots.policy import PolicyConfig, PolicyInfo
+from inspect_robots.spaces import ActionSemantics, Box
 
-from robolens_soarm import preflight
-from robolens_soarm.embodiment import SOArmEmbodiment
+from inspect_robots_so101 import preflight
+from inspect_robots_so101.embodiment import SOArmEmbodiment
 
 
 class _WrongDimPolicy:

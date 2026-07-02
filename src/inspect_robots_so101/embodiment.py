@@ -1,10 +1,10 @@
-"""``SOArmEmbodiment`` — RoboLens embodiment for a LeRobot SO-ARM follower.
+"""``SOArmEmbodiment`` — Inspect Robots embodiment for a LeRobot SO-ARM follower.
 
 Wraps the LeRobot SO follower driver (SO-100 / SO-101). Designed for real-robot
 reality:
 
 * **Safety backstop** — every command is clamped to the configured joint limits
-  inside :meth:`step`, *independently* of any RoboLens ``Approver`` (so unclamped
+  inside :meth:`step`, *independently* of any Inspect Robots ``Approver`` (so unclamped
   model outputs can never reach the motors). This is layered on top of LeRobot's
   own ``max_relative_target`` slew limit, which the driver applies.
 * **Operator-in-the-loop success** — there is no privileged oracle; when the
@@ -29,13 +29,13 @@ from typing import Any, Protocol, cast, runtime_checkable
 
 import numpy as np
 import numpy.typing as npt
-from robolens.embodiment import SELF_PACED, EmbodimentInfo
-from robolens.scene import Scene
-from robolens.types import Action, Observation, StepResult
+from inspect_robots.embodiment import SELF_PACED, EmbodimentInfo
+from inspect_robots.scene import Scene
+from inspect_robots.types import Action, Observation, StepResult
 
-from robolens_soarm import packing
-from robolens_soarm.config import SOArmConfig, action_box, observation_space
-from robolens_soarm.operator import OperatorIO, default_poll_end
+from inspect_robots_so101 import packing
+from inspect_robots_so101.config import SOArmConfig, action_box, observation_space
+from inspect_robots_so101.operator import OperatorIO, default_poll_end
 
 ImageMap = Mapping[str, npt.NDArray[np.uint8]]
 Vec = npt.NDArray[np.float64]
@@ -78,7 +78,7 @@ def _default_driver_factory(cfg: SOArmConfig) -> SOArmDriver:  # pragma: no cove
 
 
 class SOArmEmbodiment:
-    """RoboLens embodiment for a single SO-ARM follower (joint-position control)."""
+    """Inspect Robots embodiment for a single SO-ARM follower (joint-position control)."""
 
     def __init__(
         self,

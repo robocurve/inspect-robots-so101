@@ -1,7 +1,7 @@
 """Canonical 6-D joint packing for an SO-ARM follower (SO-100 / SO-101).
 
 A LeRobot SO follower is a single 6-motor arm. LeRobot names the motors and keys
-its observations / actions by ``"<motor>.pos"``; RoboLens, like the rest of this
+its observations / actions by ``"<motor>.pos"``; Inspect Robots, like the rest of this
 package, works in a flat **6-D** vector. This module is the *one* place that
 defines how those 6 numbers map to the named motors, so the policy (a LeRobot
 model) and the embodiment (the LeRobot driver) can never disagree.
@@ -21,7 +21,7 @@ from typing import Any
 
 import numpy as np
 import numpy.typing as npt
-from robolens.spaces import StateField, StateSpec
+from inspect_robots.spaces import StateField, StateSpec
 
 # The SO follower motor names, in LeRobot's canonical order (see
 # lerobot/robots/so_follower/so_follower.py). The five arm joints then the gripper.

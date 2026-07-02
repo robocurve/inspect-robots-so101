@@ -1,21 +1,21 @@
 <div align="center">
 
-# 🦾 robolens-soarm
+# 🦾 inspect-robots-so101
 
-**Run [RoboLens](https://github.com/robocurve/robolens) evals on real
+**Run [Inspect Robots](https://github.com/robocurve/inspect-robots) evals on real
 [SO-ARM](https://github.com/TheRobotStudio/SO-ARM100) followers (SO-100 / SO-101)
 driven by [LeRobot](https://github.com/huggingface/lerobot) policies.**
 
-[![CI](https://github.com/robocurve/robolens-soarm/actions/workflows/ci.yml/badge.svg)](https://github.com/robocurve/robolens-soarm/actions/workflows/ci.yml)
+[![CI](https://github.com/robocurve/inspect-robots-so101/actions/workflows/ci.yml/badge.svg)](https://github.com/robocurve/inspect-robots-so101/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](https://github.com/robocurve/robolens-soarm/actions/workflows/ci.yml)
-[![Built on RoboLens](https://img.shields.io/badge/built%20on-RoboLens-indigo)](https://github.com/robocurve/robolens)
+[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](https://github.com/robocurve/inspect-robots-so101/actions/workflows/ci.yml)
+[![Built on Inspect Robots](https://img.shields.io/badge/built%20on-Inspect%20Robots-indigo)](https://github.com/robocurve/inspect-robots)
 
 </div>
 
-RoboLens has **two** swappable inputs: a `Policy` (the VLA brain) and an
+Inspect Robots has **two** swappable inputs: a `Policy` (the VLA brain) and an
 `Embodiment` (the robot body + world). This package provides both for the
-SO-ARM + LeRobot stack, so any embodiment-agnostic RoboLens task runs on a real
+SO-ARM + LeRobot stack, so any embodiment-agnostic Inspect Robots task runs on a real
 arm:
 
 - **`lerobot` policy** — wraps a LeRobot checkpoint (ACT, SmolVLA, π0, diffusion…)
@@ -25,23 +25,23 @@ arm:
 
 Both declare the **same 6-D joint-position contract** (`shoulder_pan`,
 `shoulder_lift`, `elbow_flex`, `wrist_flex`, `wrist_roll`, `gripper`; the cameras
-you configure; packed `joint_pos` state), so RoboLens's compatibility check passes
+you configure; packed `joint_pos` state), so Inspect Robots's compatibility check passes
 with **zero errors and zero warnings** — verifiable before any motion.
 
 ```bash
-robolens run --task cubepick-reach --policy lerobot --embodiment so_arm
+inspect-robots run --task cubepick-reach --policy lerobot --embodiment so_arm
 ```
 
 > This is the SO-ARM/LeRobot sibling of
-> [robolens-yam](https://github.com/robocurve/robolens-yam) (bimanual I2RT YAM +
-> MolmoAct2). Same RoboLens contract, different body and brain.
+> [inspect-robots-yam](https://github.com/robocurve/inspect-robots-yam) (bimanual I2RT YAM +
+> MolmoAct2). Same Inspect Robots contract, different body and brain.
 
 ## Install (on the robot/GPU machine)
 
 ```bash
-# RoboLens isn't on PyPI yet; uv resolves it from git. The `lerobot` extra pulls
+# Inspect Robots isn't on PyPI yet; uv resolves it from git. The `lerobot` extra pulls
 # torch + lerobot + the Feetech motor bus the SO follower uses.
-uv pip install "robolens-soarm[lerobot] @ git+https://github.com/robocurve/robolens-soarm"
+uv pip install "inspect-robots-so101[lerobot] @ git+https://github.com/robocurve/inspect-robots-so101"
 ```
 
 - `lerobot` → `lerobot[feetech]` (torch, the policy, and the SO-ARM driver).
@@ -52,9 +52,9 @@ public `lerobot/smolvla_base`, or your own ACT/π0 checkpoint on the Hub or a pa
 ## Preflight — *prove compatibility before any motion*
 
 ```bash
-robolens-soarm-preflight                          # dims/semantics/cameras/state
-robolens-soarm-preflight --task cubepick-reach    # + scene realizability
-robolens-soarm-preflight --dry-run                # affirm no motion
+inspect-robots-so101-preflight                          # dims/semantics/cameras/state
+inspect-robots-so101-preflight --task cubepick-reach    # + scene realizability
+inspect-robots-so101-preflight --dry-run                # affirm no motion
 ```
 
 A green preflight means action dim (6), control mode (`joint_pos`), cameras, and
@@ -67,9 +67,9 @@ You must point the embodiment at your serial port and camera config, and the
 policy at a checkpoint:
 
 ```python
-from robolens import eval
-from robolens.approver import ClampApprover
-from robolens_soarm import LeRobotPolicy, SOArmEmbodiment, SOArmConfig, LeRobotPolicyConfig
+from inspect_robots import eval
+from inspect_robots.approver import ClampApprover
+from inspect_robots_so101 import LeRobotPolicy, SOArmEmbodiment, SOArmConfig, LeRobotPolicyConfig
 from lerobot.cameras.opencv import OpenCVCameraConfig  # your camera backend
 
 emb = SOArmEmbodiment(SOArmConfig(
@@ -94,7 +94,7 @@ Unattended runs simply run to `max_steps` and score as failures.
 ## Safety
 
 - **Hard clamp backstop.** Every command is clipped to `SOArmConfig.joint_low/high`
-  *inside* `step()`, independent of any RoboLens `Approver` and on top of LeRobot's
+  *inside* `step()`, independent of any Inspect Robots `Approver` and on top of LeRobot's
   own `max_relative_target` slew limit — unclamped model outputs can never reach
   the motors. **Set these to your real, calibrated SO-ARM joint limits** (the
   defaults are conservative placeholders: joints ±180°, gripper 0–100).
@@ -118,12 +118,12 @@ Unattended runs simply run to `max_steps` and score as failures.
 `state_key`, `chunk_size`, `cam_height/width`.
 
 Scalar knobs are settable from the CLI:
-`robolens run -P pretrained_path=lerobot/smolvla_base -E port=/dev/ttyACM0 ...`.
+`inspect-robots run -P pretrained_path=lerobot/smolvla_base -E port=/dev/ttyACM0 ...`.
 
 ## Development
 
 ```bash
-uv venv && uv pip install -e ".[dev]"     # robolens from a git tag
+uv venv && uv pip install -e ".[dev]"     # inspect-robots from a git tag
 uv run pre-commit install
 uv run pytest --cov                        # 100% coverage required
 uv run ruff check . && uv run mypy

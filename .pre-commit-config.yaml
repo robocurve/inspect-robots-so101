@@ -1,4 +1,4 @@
-# Pre-commit hooks for robolens-soarm. Install once per clone:
+# Pre-commit hooks for inspect-robots-so101. Install once per clone:
 #
 #     uv run pre-commit install        # sets up both pre-commit and pre-push hooks
 #
