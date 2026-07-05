@@ -35,6 +35,11 @@ def test_policy_defaults() -> None:
     assert cfg.chunk_size == 50
 
 
+def test_policy_rejects_nonpositive_chunk_size() -> None:
+    with pytest.raises(ValueError, match="chunk_size must be >= 1"):
+        LeRobotPolicyConfig(chunk_size=0)
+
+
 def test_from_kwargs_populates_scalars() -> None:
     cfg = LeRobotPolicyConfig.from_kwargs(pretrained_path="my/ckpt", policy_type="act")
     assert cfg.pretrained_path == "my/ckpt"
