@@ -12,7 +12,7 @@ from inspect_robots.types import Action
 
 from inspect_robots_so101 import packing
 from inspect_robots_so101.config import SOArmConfig
-from inspect_robots_so101.embodiment import SOArmEmbodiment
+from inspect_robots_so101.embodiment import SOArmEmbodiment, _check_calibrated
 from inspect_robots_so101.operator import OperatorIO
 
 
@@ -75,7 +75,7 @@ def test_zero_arg_info_no_hardware() -> None:
 
 
 def test_reset_returns_observation_and_homes() -> None:
-    cfg = SOArmConfig(home_pose=(5.0,) * 6)
+    cfg = SOArmConfig(home_pose=(5.0,) * 6, max_relative_target=10.0)
     emb, drv, _ = _build(cfg)
     obs = emb.reset(Scene(id="s", instruction="reach"))
     assert set(obs.images) == {"front"}
@@ -186,3 +186,47 @@ def test_close_idempotent_and_releases() -> None:
     emb.close()
     assert drv.disconnected is True
     emb.close()  # second close: no error
+
+
+def test_close_releases_driver_even_if_disconnect_raises() -> None:
+    class ExplodingDriver(FakeDriver):
+        def disconnect(self) -> None:
+            raise RuntimeError("serial port yanked")
+
+    drv = ExplodingDriver()
+    emb, _, _ = _build(driver=drv)
+    emb.reset(Scene(id="s", instruction="x"))
+    with pytest.raises(RuntimeError, match="serial port yanked"):
+        emb.close()
+    emb.close()  # handle was cleared despite the raise: now a no-op
+
+
+def test_context_manager_closes_on_exit() -> None:
+    emb, drv, _ = _build()
+    with emb as entered:
+        assert entered is emb
+        emb.reset(Scene(id="s", instruction="x"))
+    assert drv.disconnected is True
+
+
+def test_context_manager_closes_on_exception() -> None:
+    emb, drv, _ = _build()
+    with pytest.raises(RuntimeError, match="boom"), emb:
+        emb.reset(Scene(id="s", instruction="x"))
+        raise RuntimeError("boom")
+    assert drv.disconnected is True
+
+
+def test_check_calibrated_passes_when_calibrated() -> None:
+    robot = type("R", (), {"is_calibrated": True, "calibration_fpath": "/tmp/my_arm.json"})()
+    _check_calibrated(robot, SOArmConfig(robot_id="my_arm"))  # no raise
+
+
+def test_check_calibrated_raises_actionable_error() -> None:
+    robot = type("R", (), {"is_calibrated": False, "calibration_fpath": "/cal/my_arm.json"})()
+    with pytest.raises(RuntimeError, match="lerobot-calibrate") as exc:
+        _check_calibrated(robot, SOArmConfig(robot_id="my_arm"))
+    msg = str(exc.value)
+    assert "/cal/my_arm.json" in msg  # names the calibration file it looked for
+    assert "robot_id='my_arm'" in msg
+    assert "--robot.type=so101_follower" in msg

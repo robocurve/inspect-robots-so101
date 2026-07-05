@@ -35,6 +35,13 @@ _DEFAULT_HIGH: tuple[float, ...] = (180.0,) * NUM_JOINTS + (100.0,)
 
 DEFAULT_CAMERAS: tuple[str, ...] = ("front",)
 
+# The SO follower variants lerobot ships. At lerobot v0.5.x both names alias the
+# SAME driver + config classes (SO100Follower = SO101Follower = SOFollower), so
+# `robot_type` is a documented, validated label — it does not change runtime
+# behavior. It exists so configs stay self-describing and so a future lerobot
+# that splits the classes has an obvious wiring point.
+VALID_ROBOT_TYPES: tuple[str, ...] = ("so101_follower", "so100_follower")
+
 
 class _FromKwargs:
     """Mixin: build a frozen dataclass from flat scalar kwargs (CLI-friendly)."""
@@ -53,7 +60,14 @@ class SOArmConfig(_FromKwargs):
     """Static configuration for a single SO-ARM follower embodiment."""
 
     port: str = "/dev/ttyACM0"
-    robot_type: str = "so101_follower"  # or "so100_follower"
+    robot_type: str = "so101_follower"  # or "so100_follower" (see VALID_ROBOT_TYPES)
+    # The lerobot robot id: selects the calibration file
+    # (<calibration_dir>/<robot_id>.json, written by `lerobot-calibrate`). Without
+    # it lerobot would look for "None.json" — set it to the id you calibrated with.
+    robot_id: str | None = None
+    # Where lerobot stores calibration files. None -> lerobot's default
+    # (~/.cache/huggingface/lerobot/calibration/robots/<robot_type>/).
+    calibration_dir: str | None = None
     cameras: tuple[str, ...] = DEFAULT_CAMERAS
     control_hz: float = 30.0
     cam_height: int = 480
@@ -77,6 +91,28 @@ class SOArmConfig(_FromKwargs):
                 raise ValueError(f"{name} must have {TOTAL_DIM} entries")
         if self.home_pose is not None and len(self.home_pose) != TOTAL_DIM:
             raise ValueError(f"home_pose must have {TOTAL_DIM} entries")
+        if self.robot_type not in VALID_ROBOT_TYPES:
+            raise ValueError(
+                f"robot_type must be one of {VALID_ROBOT_TYPES}, got {self.robot_type!r}"
+            )
+        if not self.use_degrees:
+            # Supporting normalized (+/-100) joints means deriving STATE_SPEC units
+            # and the clamp bounds from the config throughout packing/policy/
+            # embodiment; not implemented yet. Tracked as an issue.
+            raise ValueError(
+                "use_degrees=False is not supported: this package's state spec and "
+                "default joint limits assume degrees (lerobot's SO follower default). "
+                "Leave use_degrees=True, or file/upvote the issue for normalized units."
+            )
+        if self.home_pose is not None and self.max_relative_target is None:
+            # Homing sends ONE absolute command; without lerobot's
+            # max_relative_target slew limit the arm would slam to home at full
+            # speed from wherever it is. Interpolated homing is tracked as an issue.
+            raise ValueError(
+                "home_pose without max_relative_target would command a full-speed "
+                "jump to the home pose; set SOArmConfig.max_relative_target (degrees "
+                "per step) to slew-limit it, or unset home_pose"
+            )
 
     @property
     def low(self) -> npt.NDArray[np.float64]:
