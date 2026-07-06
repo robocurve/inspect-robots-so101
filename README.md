@@ -168,8 +168,10 @@ uv run ruff check . && uv run mypy
 
 The whole suite runs with **no hardware, no GPU, no torch, no lerobot, and no
 stdin** — the SO-ARM driver, the policy inference, the clock, and operator I/O are
-all injected. The default hardware/model seams are excluded from coverage
-(`# pragma: no cover`).
+all injected. The real model seam (`_default_predict`) is covered via
+`sys.modules` fakes, and a dedicated `lerobot-seam` CI job (py3.12) imports the
+real lerobot symbols it uses; only direct hardware/TTY I/O keeps
+`# pragma: no cover`.
 
 ## License
 

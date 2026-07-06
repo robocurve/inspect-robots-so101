@@ -132,9 +132,18 @@ class LeRobotPolicyConfig(_FromKwargs):
     device: str = "cuda"
     cameras: tuple[str, ...] = DEFAULT_CAMERAS
     state_key: str = STATE_KEY
+    # Max actions consumed per inference: ``act()`` truncates the model's chunk to
+    # its first ``chunk_size`` actions (mirrors the async policy server's
+    # ``actions_per_chunk``) and advertises it as ``PolicyConfig.action_horizon``.
+    # Distinct from the framework-side ``DefaultController.replan_interval``, which
+    # caps how many actions of an already-returned chunk get executed per replan.
     chunk_size: int = 50
     cam_height: int = 480
     cam_width: int = 640
+
+    def __post_init__(self) -> None:
+        if self.chunk_size < 1:
+            raise ValueError(f"chunk_size must be >= 1, got {self.chunk_size}")
 
 
 # The action *semantics* both the policy and the embodiment declare. Compatibility
