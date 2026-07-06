@@ -15,11 +15,14 @@ Inspect Robots evals swap two inputs: a `Policy` (VLA brain) and an `Embodiment`
 body + world). We ship both for one real stack:
 
 - **`lerobot` policy** — wraps a LeRobot checkpoint (ACT / SmolVLA / π0 / …) and
-  runs it **in process** (`predict_action_chunk` + the model's pre/post
-  processors). Unlike YAM/MolmoAct2 (a separate HTTP server), LeRobot models are a
-  library you import — so torch + lerobot + the checkpoint live behind **one
-  injectable seam**, `LeRobotPolicy(predict_fn=...)`. We never import torch at
-  module top.
+  runs it **in process** (`raw_observation_to_observation` + the model's pre/post
+  processors + `predict_action_chunk`). Unlike YAM/MolmoAct2 (a separate HTTP
+  server), LeRobot models are a library you import — so torch + lerobot + the
+  checkpoint live behind **one injectable seam**, `LeRobotPolicy(predict_fn=...)`,
+  which receives the RAW robot payload (`"<motor>.pos"` floats, frames keyed by
+  camera name, `"task"`). We never import torch at module top; the seam's wiring
+  is unit-tested with `sys.modules` fakes and its real imports are validated by
+  the `lerobot-seam` CI job (py3.12).
 - **`so_arm` embodiment** — the LeRobot SO follower driver. Its `get_observation`
   already returns both `"<motor>.pos"` floats *and* camera frames, so there is no
   separate camera reader (a small simplification over inspect-robots-yam).

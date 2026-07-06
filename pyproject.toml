@@ -28,7 +28,10 @@ dependencies = ["inspect-robots>=0.3", "numpy>=1.24"]
 # requires Python>=3.12, so the extra is gated to 3.12+ (the numpy-only core still
 # imports on 3.10/3.11 — the hardware extra just isn't installable there). Without
 # this marker `uv`'s universal resolution fails on the 3.10/3.11 splits.
-lerobot = ["lerobot[feetech]>=0.5; python_version >= '3.12'"]
+# Capped <0.6: the inference seam relies on internal-ish lerobot modules
+# (async_inference.helpers, datasets.feature_utils) whose paths already moved once
+# within 0.5.x; the `lerobot-seam` CI job validates the pin before it is raised.
+lerobot = ["lerobot[feetech]>=0.5,<0.6; python_version >= '3.12'"]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
