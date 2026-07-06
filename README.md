@@ -45,6 +45,9 @@ uv pip install "inspect-robots-so101[lerobot] @ git+https://github.com/robocurve
 ```
 
 - `lerobot` → `lerobot[feetech]` (torch, the policy, and the SO-ARM driver).
+- **The `lerobot` extra needs Python ≥ 3.12** (lerobot ≥ 0.5's floor). On
+  3.10/3.11 the extra silently resolves to *nothing*: the core package still
+  imports, but no torch/lerobot is installed and hardware runs will fail.
 
 Then pick a checkpoint. Any LeRobot policy trained on your SO-ARM works — e.g. the
 public `lerobot/smolvla_base`, or your own ACT/π0 checkpoint on the Hub or a path.
@@ -61,10 +64,26 @@ A green preflight means action dim (6), control mode (`joint_pos`), cameras, and
 state keys all line up. **It does not prove the joint values are interpreted the
 same way** — see *Safety* below.
 
+## Calibrate first (once, with lerobot)
+
+The embodiment **never** runs lerobot's interactive calibration — connecting with
+an uncalibrated arm would otherwise drop into a *blocking* prompt that moves the
+arm mid-eval. Calibrate once with lerobot's own tool, then tell the config which
+identity you used:
+
+```bash
+lerobot-calibrate --robot.type=so101_follower --robot.port=/dev/ttyACM0 --robot.id=my_follower
+```
+
+`SOArmConfig(robot_id="my_follower")` selects that calibration file
+(`<calibration_dir>/<robot_id>.json`; leave `calibration_dir=None` for lerobot's
+default location). If the arm isn't calibrated — or the file no longer matches
+the motors — `reset()` fails fast with an actionable error instead of prompting.
+
 ## Run on hardware
 
-You must point the embodiment at your serial port and camera config, and the
-policy at a checkpoint:
+You must point the embodiment at your serial port, calibration id, and camera
+config, and the policy at a checkpoint:
 
 ```python
 from inspect_robots import eval
@@ -75,6 +94,8 @@ from lerobot.cameras.opencv import OpenCVCameraConfig  # your camera backend
 emb = SOArmEmbodiment(SOArmConfig(
     port="/dev/ttyACM0",
     robot_type="so101_follower",
+    robot_id="my_follower",    # the id you ran `lerobot-calibrate` with
+    max_relative_target=10.0,  # lerobot's slew limit (deg/step); required for home_pose
     cameras=("front",),
     camera_configs={"front": OpenCVCameraConfig(index_or_path=0, width=640, height=480, fps=30)},
 ))
@@ -82,10 +103,13 @@ pol = LeRobotPolicy(LeRobotPolicyConfig(
     pretrained_path="lerobot/smolvla_base", policy_type="smolvla", device="cuda",
 ))
 
-(log,) = eval("cubepick-reach", pol, emb,
-              approver=ClampApprover(emb.info.action_space))  # defense in depth
+with emb:  # guarantees disconnect (and torque-off) even if the eval raises
+    (log,) = eval("cubepick-reach", pol, emb,
+                  approver=ClampApprover(emb.info.action_space))  # defense in depth
 print(log.status, log.results.metrics)
 ```
+
+(Equivalently, wrap the `eval(...)` in `try: ... finally: emb.close()`.)
 
 At each episode end the embodiment asks the operator (y/N); a `yes` records
 `termination_reason="success"`, which the task's `success_at_end` scorer reads.
@@ -102,7 +126,16 @@ Unattended runs simply run to `max_steps` and score as failures.
 - **Native units, no renormalization.** LeRobot's postprocessor unnormalizes the
   policy output to the robot's native motor units (degrees for joints, 0–100 for
   the gripper), so the embodiment commands them verbatim after the clamp. Train
-  and run the policy in the *same* units (`use_degrees` must match your dataset).
+  and run the policy in the *same* units. `use_degrees=False` (lerobot's
+  normalized ±100 mode) is **rejected** — the state spec and default limits here
+  assume degrees. Also note the units are *degrees* while Inspect Robots's canonical
+  `joint_pos` convention is radians: the compat check compares state **keys**
+  only, so pairing either component with a third-party counterpart will *not*
+  flag a unit mismatch — verify units yourself when mixing stacks.
+- **Homing is slew-limited or refused.** `home_pose` sends a single absolute
+  command, so the config requires `max_relative_target` (LeRobot's per-step slew
+  limit) whenever `home_pose` is set — otherwise the arm would slam to home at
+  full speed from wherever it happens to be.
 - **Absolute vs. delta joints — verify first.** Actions are treated as **absolute**
   joint targets by default. If your checkpoint emits deltas, set
   `SOArmConfig(joints_are_delta=True)` (the embodiment converts to absolute
@@ -111,9 +144,13 @@ Unattended runs simply run to `max_steps` and score as failures.
 
 ## Configuration
 
-`SOArmConfig`: `port`, `robot_type`, `cameras`, `camera_configs`, `control_hz`,
-`cam_height/width`, `joint_low/high`, `home_pose`, `joints_are_delta`,
-`use_degrees`, `max_relative_target`, `disable_torque_on_disconnect`.
+`SOArmConfig`: `port`, `robot_type`, `robot_id`, `calibration_dir`, `cameras`,
+`camera_configs`, `control_hz`, `cam_height/width`, `joint_low/high`,
+`home_pose` (requires `max_relative_target`), `joints_are_delta`, `use_degrees`
+(must stay `True`), `max_relative_target`, `disable_torque_on_disconnect`.
+`robot_type` is validated (`so101_follower` / `so100_follower`) but is a label:
+at lerobot v0.5.x both names alias the same driver class, so it changes no
+runtime behavior.
 `LeRobotPolicyConfig`: `pretrained_path`, `policy_type`, `device`, `cameras`,
 `state_key`, `chunk_size`, `cam_height/width`.
 
