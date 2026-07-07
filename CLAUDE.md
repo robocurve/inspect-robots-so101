@@ -92,6 +92,10 @@ A bimanual sibling would mirror inspect-robots-yam's 14-D packing.
 - **CI installs from `uv.lock`** (`uv sync --locked`). After changing
   dependencies in `pyproject.toml`, run `uv lock` and commit the lockfile —
   otherwise CI fails with "the lockfile needs to be updated".
+- A weekly **canary** (`canary.yml`) does the opposite: it installs the latest
+  dependency versions the pyproject ranges allow (ignoring the lockfile), runs
+  the tests, and opens an issue on failure — catching ecosystem breakage that
+  locked CI can't see. A green canary means `uv lock --upgrade` is safe.
 - Exception to locked installs: the `lerobot-seam` job installs with `uv pip`
   and `UV_TORCH_BACKEND=cpu` (uv sync cannot select the CPU torch wheel); its
   resolution is deliberately unlocked.
