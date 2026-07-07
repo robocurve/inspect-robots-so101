@@ -48,12 +48,8 @@ Homepage = "https://github.com/robocurve/inspect-robots-so101"
 Framework = "https://github.com/robocurve/inspect-robots"
 LeRobot = "https://github.com/huggingface/lerobot"
 
-# inspect-robots isn't on PyPI yet — resolve from a tagged GitHub release. lerobot IS on
-# PyPI (the `lerobot` extra above). This is uv-only metadata (stripped from wheels).
-# For local dev against a sibling inspect-robots checkout: uv pip install -e ../inspect-robots
-[tool.uv.sources]
-inspect-robots = { git = "https://github.com/robocurve/inspect-robots", tag = "v0.3.0" }
-
+# inspect-robots and lerobot resolve from PyPI. For local dev against a sibling
+# inspect-robots checkout: uv pip install -e ../inspect-robots
 # Inspect Robots discovers these by entry point — no import needed for `inspect-robots list`.
 [project.entry-points."inspect_robots.embodiments"]
 so_arm = "inspect_robots_so101.embodiment:SOArmEmbodiment"
