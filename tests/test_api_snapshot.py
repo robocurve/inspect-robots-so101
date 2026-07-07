@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import inspect_robots_so101
 
 EXPECTED_API = {
@@ -30,7 +32,8 @@ def test_all_names_are_importable() -> None:
 
 
 def test_version() -> None:
-    assert inspect_robots_so101.__version__ == "0.3.0"
+    # Tag-derived via hatch-vcs; 0.0.0 fallback in non-installed trees.
+    assert re.match(r"\d+\.\d+", inspect_robots_so101.__version__)
 
 
 def test_entry_points_resolve_via_registry() -> None:

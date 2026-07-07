@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling>=1.18"]
+requires = ["hatchling>=1.18", "hatch-vcs>=0.3"]
 build-backend = "hatchling.build"
 
 [project]
 name = "inspect-robots-so101"
-version = "0.3.0"
+dynamic = ["version"]
 description = "Inspect Robots adapters for LeRobot SO-ARM followers (SO-100/SO-101) driven by LeRobot policies."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -48,12 +48,8 @@ Homepage = "https://github.com/robocurve/inspect-robots-so101"
 Framework = "https://github.com/robocurve/inspect-robots"
 LeRobot = "https://github.com/huggingface/lerobot"
 
-# inspect-robots isn't on PyPI yet — resolve from a tagged GitHub release. lerobot IS on
-# PyPI (the `lerobot` extra above). This is uv-only metadata (stripped from wheels).
-# For local dev against a sibling inspect-robots checkout: uv pip install -e ../inspect-robots
-[tool.uv.sources]
-inspect-robots = { git = "https://github.com/robocurve/inspect-robots", tag = "v0.3.0" }
-
+# inspect-robots and lerobot resolve from PyPI. For local dev against a sibling
+# inspect-robots checkout: uv pip install -e ../inspect-robots
 # Inspect Robots discovers these by entry point — no import needed for `inspect-robots list`.
 [project.entry-points."inspect_robots.embodiments"]
 so_arm = "inspect_robots_so101.embodiment:SOArmEmbodiment"
@@ -69,6 +65,19 @@ packages = ["src/inspect_robots_so101"]
 
 [tool.hatch.build.targets.sdist]
 include = ["src/inspect_robots_so101", "tests", "README.md"]
+
+
+# ---------------------------------------------------------------------------
+# Versioning: single-source the version from git tags via hatch-vcs (the
+# release workflow cuts a vX.Y.Z tag; nothing is committed to main).
+# ---------------------------------------------------------------------------
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+# Before/without tags (e.g. shallow CI checkouts), fall back instead of failing.
+version_scheme = "guess-next-dev"
+fallback_version = "0.0.0"
 
 [tool.ruff]
 line-length = 100
