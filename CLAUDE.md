@@ -76,3 +76,26 @@ Training/fine-tuning LeRobot policies (that's `huggingface/lerobot`), serving th
 async gRPC `PolicyServer` (we run in process), and **bimanual** SO arms
 (`bi_so_follower`) or non-SO LeRobot robots — this package is single-arm SO-ARM.
 A bimanual sibling would mirror inspect-robots-yam's 14-D packing.
+
+## CI, merging, and releases
+
+- **main is PR-only** — a branch ruleset (admins included) blocks direct pushes,
+  force pushes, and deletion. Merging requires the `ci-ok` check green and the
+  branch up to date with main.
+- **`ci-ok` is the single required status check** — an aggregate job at the end
+  of `ci.yml`. When adding a CI job, add it to `ci-ok`'s `needs` list, or it
+  will not gate merges.
+- **Red main is stop-the-line**: if CI fails on a push to main, the
+  `alert-red-main` job opens an issue. Fix forward or revert before merging
+  anything else; if the failure was transient, re-run the failed jobs and close
+  the issue.
+- **CI installs from `uv.lock`** (`uv sync --locked`). After changing
+  dependencies in `pyproject.toml`, run `uv lock` and commit the lockfile —
+  otherwise CI fails with "the lockfile needs to be updated".
+- Exception to locked installs: the `lerobot-seam` job installs with `uv pip`
+  and `UV_TORCH_BACKEND=cpu` (uv sync cannot select the CPU torch wheel); its
+  resolution is deliberately unlocked.
+- **Releases are one-click**: Actions → Release → Run workflow → pick
+  patch/minor/major. The version is derived from the git tag by hatch-vcs —
+  never add a static `version =` back to pyproject (`__version__` comes from importlib.metadata). The same
+  run publishes to PyPI via trusted publishing; nothing is pushed to main.
