@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling>=1.18"]
+requires = ["hatchling>=1.18", "hatch-vcs>=0.3"]
 build-backend = "hatchling.build"
 
 [project]
 name = "inspect-robots-so101"
-version = "0.3.0"
+dynamic = ["version"]
 description = "Inspect Robots adapters for LeRobot SO-ARM followers (SO-100/SO-101) driven by LeRobot policies."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -69,6 +69,19 @@ packages = ["src/inspect_robots_so101"]
 
 [tool.hatch.build.targets.sdist]
 include = ["src/inspect_robots_so101", "tests", "README.md"]
+
+
+# ---------------------------------------------------------------------------
+# Versioning: single-source the version from git tags via hatch-vcs (the
+# release workflow cuts a vX.Y.Z tag; nothing is committed to main).
+# ---------------------------------------------------------------------------
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+# Before/without tags (e.g. shallow CI checkouts), fall back instead of failing.
+version_scheme = "guess-next-dev"
+fallback_version = "0.0.0"
 
 [tool.ruff]
 line-length = 100

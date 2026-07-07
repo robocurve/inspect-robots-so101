@@ -20,7 +20,13 @@ from inspect_robots_so101.packing import MOTORS, STATE_KEY, TOTAL_DIM, from_obs_
 from inspect_robots_so101.policy import LeRobotPolicy
 from inspect_robots_so101.preflight import build, run_preflight
 
-__version__ = "0.3.0"
+try:
+    from importlib.metadata import PackageNotFoundError
+    from importlib.metadata import version as _pkg_version
+
+    __version__ = _pkg_version("inspect-robots-so101")
+except PackageNotFoundError:  # pragma: no cover - only hit in a non-installed tree
+    __version__ = "0.0.0+unknown"
 
 __all__ = [
     "MOTORS",
