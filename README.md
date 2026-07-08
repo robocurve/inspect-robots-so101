@@ -6,12 +6,16 @@
 [SO-ARM](https://github.com/TheRobotStudio/SO-ARM100) followers (SO-100 / SO-101)
 driven by [LeRobot](https://github.com/huggingface/lerobot) policies.**
 
+![Status: alpha](https://img.shields.io/badge/status-alpha-blue)
 [![CI](https://github.com/robocurve/inspect-robots-so101/actions/workflows/ci.yml/badge.svg)](https://github.com/robocurve/inspect-robots-so101/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](https://github.com/robocurve/inspect-robots-so101/actions/workflows/ci.yml)
 [![Built on Inspect Robots](https://img.shields.io/badge/built%20on-Inspect%20Robots-indigo)](https://github.com/robocurve/inspect-robots)
 
 </div>
+
+> [!NOTE]
+> This project is in early development. The API may change between releases, so pin a version before depending on it.
 
 Inspect Robots has **two** swappable inputs: a `Policy` (the VLA brain) and an
 `Embodiment` (the robot body + world). This package provides both for the
