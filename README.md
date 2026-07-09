@@ -121,10 +121,10 @@ Unattended runs simply run to `max_steps` and score as failures.
 
 ## Safety
 
-- Hard clamp backstop. Every command is clipped to `SOArmConfig.joint_low/high`
+- **Hard clamp backstop.** Every command is clipped to `SOArmConfig.joint_low/high`
   *inside* `step()`, independent of any Inspect Robots `Approver` and on top of LeRobot's
-  own `max_relative_target` slew limit; unclamped model outputs can never reach
-  the motors. **Set these to your real, calibrated SO-ARM joint limits** (the
+  own `max_relative_target` slew limit. Unclamped model outputs can never reach
+  the motors. Set these to your real, calibrated SO-ARM joint limits (the
   defaults are conservative placeholders: joints ±180°, gripper 0–100).
 - **Use `ClampApprover`** on hardware for a second layer.
 - **Native units, no renormalization.** LeRobot's postprocessor unnormalizes the
@@ -135,16 +135,16 @@ Unattended runs simply run to `max_steps` and score as failures.
   assume degrees. Also note the units are *degrees* while Inspect Robots's canonical
   `joint_pos` convention is radians: the compat check compares state keys
   only, so pairing either component with a third-party counterpart will *not*
-  flag a unit mismatch; verify units yourself when mixing stacks.
+  flag a unit mismatch. Verify units yourself when mixing stacks.
 - **Homing is slew-limited or refused.** `home_pose` sends a single absolute
   command, so the config requires `max_relative_target` (LeRobot's per-step slew
-  limit) whenever `home_pose` is set; otherwise the arm would slam to home at
+  limit) whenever `home_pose` is set. Otherwise the arm would slam to home at
   full speed from wherever it happens to be.
 - **Absolute vs. delta joints: verify first.** Actions are treated as absolute
   joint targets by default. If your checkpoint emits deltas, set
   `SOArmConfig(joints_are_delta=True)` (the embodiment converts to absolute
   internally so the declared `joint_pos` stays honest). The compat check *cannot*
-  tell these apart; confirm with `--dry-run` and a single slow jog before a task.
+  tell these apart. Confirm with `--dry-run` and a single slow jog before a task.
 
 ## Configuration
 
