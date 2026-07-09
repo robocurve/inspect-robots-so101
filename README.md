@@ -124,7 +124,7 @@ Unattended runs simply run to `max_steps` and score as failures.
 - **Hard clamp backstop.** Every command is clipped to `SOArmConfig.joint_low/high`
   *inside* `step()`, independent of any Inspect Robots `Approver` and on top of LeRobot's
   own `max_relative_target` slew limit. Unclamped model outputs can never reach
-  the motors. Set these to your real, calibrated SO-ARM joint limits (the
+  the motors. **Set these to your real, calibrated SO-ARM joint limits** (the
   defaults are conservative placeholders: joints ±180°, gripper 0–100).
 - **Use `ClampApprover`** on hardware for a second layer.
 - **Native units, no renormalization.** LeRobot's postprocessor unnormalizes the
