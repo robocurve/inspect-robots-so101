@@ -22,15 +22,18 @@ class FakeDriver:
     def __init__(self, state: np.ndarray | None = None) -> None:
         self.state = np.zeros(6) if state is None else np.asarray(state, dtype=float)
         self.commands: list[np.ndarray] = []
+        self.observation_reads = 0
         self.disconnected = False
 
     def get_observation(self) -> dict[str, Any]:
+        self.observation_reads += 1
         obs: dict[str, Any] = packing.to_action_dict(self.state)
         obs["front"] = np.zeros((4, 4, 3), dtype=np.uint8)
         return obs
 
     def send_action(self, action: dict[str, float]) -> dict[str, float]:
-        self.commands.append(packing.from_obs_dict(action))
+        self.state = packing.from_obs_dict(action)
+        self.commands.append(self.state)
         return action
 
     def disconnect(self) -> None:
@@ -115,8 +118,12 @@ def test_step_delta_mode_adds_current() -> None:
     emb, _, _ = _build(cfg, driver=drv)
     emb.reset(Scene(id="s", instruction="x"))
     emb.step(Action(data=np.full(6, 1.0)))
+    emb.step(Action(data=np.full(6, 1.0)))
     # current 10 + delta 1 = 11 (within limits)
-    assert drv.commands[-1][0] == pytest.approx(11.0)
+    assert drv.commands[0][0] == pytest.approx(11.0)
+    assert drv.commands[1][0] == pytest.approx(12.0)
+    # One read at reset and one post-action read per step; no extra delta-mode read.
+    assert drv.observation_reads == 3
 
 
 def test_reset_twice_reuses_driver() -> None:
