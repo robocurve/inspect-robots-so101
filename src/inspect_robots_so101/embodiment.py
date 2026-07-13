@@ -168,7 +168,8 @@ class SOArmEmbodiment:
         self.num_steps += 1
         cmd = packing.validate_dim(action.data)
         if self._cfg.joints_are_delta:
-            assert self._last_state is not None
+            if self._last_state is None:  # pragma: no cover - reset() always observes first
+                raise RuntimeError("step() called before reset()")
             cmd = self._last_state + cmd
         self._send(cmd)
         self._pace()
