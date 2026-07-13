@@ -84,6 +84,23 @@ def test_reset_returns_observation_and_homes() -> None:
     assert len(drv.commands) == 1  # homing command issued
 
 
+def test_observation_records_monotonic_capture_times() -> None:
+    times = iter([10.0, 10.25])
+    emb = SOArmEmbodiment(
+        SOArmConfig(),
+        driver_factory=lambda _c: FakeDriver(),
+        operator=_operator(),
+        poll_end=lambda: False,
+        sleep_fn=lambda _d: None,
+        clock=lambda: next(times),
+    )
+
+    obs = emb.reset(Scene(id="s", instruction="reach"))
+
+    assert obs.image_times == {"front": 10.25}
+    assert obs.state_time == 10.25
+
+
 def test_reset_without_home_pose_issues_no_command() -> None:
     emb, drv, _ = _build()
     emb.reset(Scene(id="s", instruction="x"))

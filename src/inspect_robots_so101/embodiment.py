@@ -227,10 +227,13 @@ class SOArmEmbodiment:
 
     def _observe(self, instruction: str | None) -> Observation:
         raw = self._require_driver().get_observation()
+        observed_at = self._clock()
         state = packing.from_obs_dict(raw)
         images = {cam: np.asarray(raw[cam], dtype=np.uint8) for cam in self._cfg.cameras}
         return Observation(
             images=images,
             state={packing.STATE_KEY: state},
             instruction=instruction,
+            image_times=dict.fromkeys(self._cfg.cameras, observed_at),
+            state_time=observed_at,
         )
