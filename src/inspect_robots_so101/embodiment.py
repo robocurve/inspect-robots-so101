@@ -132,6 +132,7 @@ class SOArmEmbodiment:
 
         self._driver: SOArmDriver | None = None
         self._instruction: str | None = None
+        self._last_state: Vec | None = None
         self._t_last = 0.0
         self.num_steps = 0
 
@@ -150,6 +151,7 @@ class SOArmEmbodiment:
 
     def reset(self, scene: Scene, *, seed: int | None = None) -> Observation:
         """Connect (if needed), drive to home, and block on operator readiness."""
+        self._last_state = None
         if self._driver is None:
             self._driver = self._driver_factory(self._cfg)
         if self._cfg.home_pose is not None:
@@ -162,11 +164,13 @@ class SOArmEmbodiment:
 
     def step(self, action: Action) -> StepResult:
         """Clamp + command one action, pace to the control rate, then maybe end."""
-        driver = self._require_driver()
+        self._require_driver()
         self.num_steps += 1
         cmd = packing.validate_dim(action.data)
         if self._cfg.joints_are_delta:
-            cmd = packing.from_obs_dict(driver.get_observation()) + cmd
+            if self._last_state is None:  # pragma: no cover - reset() always observes first
+                raise RuntimeError("step() called before reset()")
+            cmd = self._last_state + cmd
         self._send(cmd)
         self._pace()
 
@@ -193,6 +197,7 @@ class SOArmEmbodiment:
                 self._driver.disconnect()
             finally:
                 self._driver = None
+                self._last_state = None
 
     def __enter__(self) -> SOArmEmbodiment:
         """Support ``with SOArmEmbodiment(...) as emb:`` for guaranteed shutdown."""
@@ -229,6 +234,7 @@ class SOArmEmbodiment:
         raw = self._require_driver().get_observation()
         observed_at = self._clock()
         state = packing.from_obs_dict(raw)
+        self._last_state = state
         images = {cam: np.asarray(raw[cam], dtype=np.uint8) for cam in self._cfg.cameras}
         return Observation(
             images=images,
