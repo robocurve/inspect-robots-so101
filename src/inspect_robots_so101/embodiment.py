@@ -57,11 +57,17 @@ class SOArmDriver(Protocol):
     camera frames keyed by camera name; actions are dicts of ``"<motor>.pos"``.
     """
 
-    def get_observation(self) -> Mapping[str, Any]: ...
+    def get_observation(self) -> Mapping[str, Any]:
+        """Return motor positions and camera frames from the connected follower."""
+        ...
 
-    def send_action(self, action: Mapping[str, float]) -> Mapping[str, Any]: ...
+    def send_action(self, action: Mapping[str, float]) -> Mapping[str, Any]:
+        """Command motor positions keyed by LeRobot's ``"<motor>.pos"`` convention."""
+        ...
 
-    def disconnect(self) -> None: ...
+    def disconnect(self) -> None:
+        """Release the follower's hardware resources."""
+        ...
 
 
 DriverFactory = Callable[[SOArmConfig], SOArmDriver]

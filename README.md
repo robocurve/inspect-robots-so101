@@ -10,6 +10,7 @@ driven by [LeRobot](https://github.com/huggingface/lerobot) policies.
 [![CI](https://github.com/robocurve/inspect-robots-so101/actions/workflows/ci.yml/badge.svg)](https://github.com/robocurve/inspect-robots-so101/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](https://github.com/robocurve/inspect-robots-so101/actions/workflows/ci.yml)
+[![Docs coverage](https://img.shields.io/badge/public%20docstrings-100%25-brightgreen)](https://github.com/robocurve/inspect-robots-so101/actions/workflows/ci.yml)
 [![Built on Inspect Robots](https://img.shields.io/badge/built%20on-Inspect%20Robots-indigo)](https://github.com/robocurve/inspect-robots)
 
 </div>
@@ -168,6 +169,9 @@ Scalar knobs are settable from the CLI:
 > `uv sync --locked` and fails with "the lockfile needs to be updated" if you
 > forget. Day-to-day conventions (PR-only `main`, the required `ci-ok` check,
 > one-click releases) are documented in [`CLAUDE.md`](CLAUDE.md).
+
+Every public module, class, and function needs a docstring, enforced by Ruff D1;
+state the contract, do not restate the name.
 
 ```bash
 uv venv && uv pip install -e ".[dev]"     # inspect-robots from a git tag

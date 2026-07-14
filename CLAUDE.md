@@ -49,6 +49,8 @@ the configured cameras, packed `joint_pos` state). That makes
   `uv pip install -e ../inspect-robots` (then `uv pip install -e . --no-deps`).
 - Gates (all blocking in CI): `ruff check .`, `ruff format --check .`,
   `mypy` (strict), `pytest --cov` at **100%**.
+- Every public module, class, and function needs a docstring, enforced by Ruff D1;
+  state the contract, do not restate the name.
 - **mypy + numpy:** numpy 2.5's stubs use 3.12-only syntax that mypy (py3.10
   target) rejects; the dev extra pins `numpy<2.5` and CI runs mypy on 3.11.
 - **No torch / no lerobot at import.** The model and driver live behind optional
