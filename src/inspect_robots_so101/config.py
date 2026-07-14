@@ -116,10 +116,12 @@ class SOArmConfig(_FromKwargs):
 
     @property
     def low(self) -> npt.NDArray[np.float64]:
+        """Return the configured lower motor limits as a float64 array."""
         return np.asarray(self.joint_low, dtype=np.float64)
 
     @property
     def high(self) -> npt.NDArray[np.float64]:
+        """Return the configured upper motor limits as a float64 array."""
         return np.asarray(self.joint_high, dtype=np.float64)
 
 
