@@ -58,13 +58,17 @@ def _import_hw_to_dataset_features() -> Callable[..., dict[str, Any]]:
     """Import lerobot's ``hw_to_dataset_features`` across supported versions.
 
     lerobot moved it from ``lerobot.datasets.utils`` (v0.5.0) to
-    ``lerobot.datasets.feature_utils`` (v0.5.1); the ``lerobot-seam`` CI job
+    ``lerobot.datasets.feature_utils`` (v0.5.1) to
+    ``lerobot.utils.feature_utils`` (v0.6.0); the ``lerobot-seam`` CI job
     guards this against further drift.
     """
     try:
-        from lerobot.datasets.feature_utils import hw_to_dataset_features
-    except ImportError:  # lerobot == 0.5.0
-        from lerobot.datasets.utils import hw_to_dataset_features
+        from lerobot.utils.feature_utils import hw_to_dataset_features
+    except ImportError:
+        try:  # lerobot 0.5.1 - 0.5.x
+            from lerobot.datasets.feature_utils import hw_to_dataset_features
+        except ImportError:  # lerobot == 0.5.0
+            from lerobot.datasets.utils import hw_to_dataset_features
     return hw_to_dataset_features  # type: ignore[no-any-return]
 
 

@@ -176,9 +176,9 @@ def _install_lerobot_fakes(
     *,
     chunk: np.ndarray,
     image_features: dict[str, Any] | None = None,
-    feature_utils: bool = True,
+    feature_layout: str = "v060",
 ) -> dict[str, Any]:
-    """Install fake torch/lerobot modules; return a dict recording every call."""
+    """Install fakes for the v0.6.0, v0.5.1, or v0.5.0 feature layout."""
     calls: dict[str, Any] = {}
     if image_features is None:
         image_features = {"observation.images.front": SimpleNamespace(shape=(3, 4, 4))}
@@ -267,19 +267,37 @@ def _install_lerobot_fakes(
         "lerobot.async_inference.helpers": helpers,
         "lerobot.datasets": datasets,
     }
-    if feature_utils:
+    if feature_layout == "v060":
+        # lerobot >= 0.6.0: hw_to_dataset_features lives in lerobot.utils.feature_utils.
+        monkeypatch.delitem(sys.modules, "lerobot.datasets.feature_utils", raising=False)
+        monkeypatch.delitem(sys.modules, "lerobot.datasets.utils", raising=False)
+        utils = ModuleType("lerobot.utils")
+        feature_utils_mod = ModuleType("lerobot.utils.feature_utils")
+        feature_utils_mod.hw_to_dataset_features = hw_to_dataset_features  # type: ignore[attr-defined]
+        utils.feature_utils = feature_utils_mod  # type: ignore[attr-defined]
+        lerobot.utils = utils  # type: ignore[attr-defined]
+        modules["lerobot.utils"] = utils
+        modules["lerobot.utils.feature_utils"] = feature_utils_mod
+    elif feature_layout == "v051":
+        # lerobot 0.5.1 - 0.5.x: the helper moved to datasets.feature_utils.
+        monkeypatch.delitem(sys.modules, "lerobot.utils.feature_utils", raising=False)
+        monkeypatch.delitem(sys.modules, "lerobot.utils", raising=False)
         feature_utils_mod = ModuleType("lerobot.datasets.feature_utils")
         feature_utils_mod.hw_to_dataset_features = hw_to_dataset_features  # type: ignore[attr-defined]
         datasets.feature_utils = feature_utils_mod  # type: ignore[attr-defined]
         modules["lerobot.datasets.feature_utils"] = feature_utils_mod
-    else:
+    elif feature_layout == "v050":
         # lerobot == 0.5.0 layout: hw_to_dataset_features in lerobot.datasets.utils
         # and NO feature_utils module (the import must raise ImportError).
+        monkeypatch.delitem(sys.modules, "lerobot.utils.feature_utils", raising=False)
+        monkeypatch.delitem(sys.modules, "lerobot.utils", raising=False)
         monkeypatch.delitem(sys.modules, "lerobot.datasets.feature_utils", raising=False)
         utils_mod = ModuleType("lerobot.datasets.utils")
         utils_mod.hw_to_dataset_features = hw_to_dataset_features  # type: ignore[attr-defined]
         datasets.utils = utils_mod  # type: ignore[attr-defined]
         modules["lerobot.datasets.utils"] = utils_mod
+    else:
+        raise ValueError(f"unknown feature layout: {feature_layout}")
 
     for name, mod in modules.items():
         monkeypatch.setitem(sys.modules, name, mod)
@@ -370,7 +388,22 @@ def test_default_predict_rejects_camera_feature_mismatch(
 def test_default_predict_hw_features_fallback_import(monkeypatch: pytest.MonkeyPatch) -> None:
     # lerobot 0.5.0 layout: no lerobot.datasets.feature_utils -> fall back to
     # lerobot.datasets.utils.
-    calls = _install_lerobot_fakes(monkeypatch, chunk=np.ones((1, 2, 6)), feature_utils=False)
+    calls = _install_lerobot_fakes(monkeypatch, chunk=np.ones((1, 2, 6)), feature_layout="v050")
+    pol = LeRobotPolicy(_seam_cfg())
+    pol.reset(Scene(id="s", instruction="x"))
+    out = pol.act(_obs())
+    assert len(out) == 2
+    assert calls["hw_prefix"] == "observation"
+
+
+def test_default_predict_hw_features_v051_fallback_import(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _install_lerobot_fakes(
+        monkeypatch,
+        chunk=np.ones((1, 2, 6)),
+        feature_layout="v051",
+    )
     pol = LeRobotPolicy(_seam_cfg())
     pol.reset(Scene(id="s", instruction="x"))
     out = pol.act(_obs())
