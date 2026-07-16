@@ -77,6 +77,16 @@ def test_zero_arg_info_no_hardware() -> None:
     assert emb.info.observation_space.state_keys == frozenset({"joint_pos"})
 
 
+def test_normalized_info_uses_normalized_state_and_limits() -> None:
+    emb = SOArmEmbodiment(SOArmConfig(use_degrees=False))
+    state = emb.info.observation_space.state
+    assert state is not None and state.fields[0].unit == "normalized"
+    assert emb.info.action_space.low is not None
+    assert emb.info.action_space.high is not None
+    assert np.array_equal(emb.info.action_space.low, [-100.0] * 5 + [0.0])
+    assert np.array_equal(emb.info.action_space.high, [100.0] * 6)
+
+
 def test_reset_returns_observation_and_homes() -> None:
     cfg = SOArmConfig(home_pose=(5.0,) * 6, max_relative_target=10.0)
     emb, drv, _ = _build(cfg)
@@ -127,6 +137,13 @@ def test_step_clamps_low_side() -> None:
     cmd = drv.commands[-1]
     assert cmd[0] == pytest.approx(-180.0)
     assert cmd[5] == pytest.approx(0.0)  # gripper floor
+
+
+def test_step_clamps_in_normalized_mode() -> None:
+    emb, drv, _ = _build(SOArmConfig(use_degrees=False))
+    emb.reset(Scene(id="s", instruction="x"))
+    emb.step(Action(data=np.array([1000.0, -1000.0, 0.0, 0.0, 0.0, -1.0])))
+    assert np.array_equal(drv.commands[-1], [100.0, -100.0, 0.0, 0.0, 0.0, 0.0])
 
 
 def test_step_delta_mode_adds_current() -> None:

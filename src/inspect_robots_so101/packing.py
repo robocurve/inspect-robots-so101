@@ -41,16 +41,24 @@ GRIPPER_IDX = TOTAL_DIM - 1  # index 5
 # LeRobot keys motor positions as "<motor>.pos" in observations and actions.
 POS_SUFFIX = ".pos"
 
-# The canonical proprioception key. Joints are degrees (the SO follower default,
-# ``use_degrees=True``) and the trailing gripper is a 0..100 position; we model the
-# vector as a single field so ``StateSpec.keys == {"joint_pos"}`` stays consistent
-# with the ``state_keys`` both components declare for compatibility.
+# The canonical proprioception key. The vector is one field so
+# ``StateSpec.keys == {"joint_pos"}`` stays consistent with the ``state_keys``
+# both components declare for compatibility. Its unit depends on the LeRobot
+# driver's ``use_degrees`` mode and is therefore built by :func:`state_spec`.
 STATE_KEY = "joint_pos"
-STATE_SPEC = StateSpec(
-    fields=(StateField(key=STATE_KEY, shape=(TOTAL_DIM,), unit="deg+normalized"),)
-)
 
 Vec = npt.NDArray[np.float64]
+
+
+def state_spec(*, use_degrees: bool) -> StateSpec:
+    """Describe packed motor positions in the configured LeRobot native units.
+
+    Degree mode uses degrees for the five arm joints and LeRobot's 0..100
+    normalized gripper position. Normalized mode uses LeRobot's normalized
+    positions for every motor (arm joints -100..100, gripper 0..100).
+    """
+    unit = "deg+normalized" if use_degrees else "normalized"
+    return StateSpec(fields=(StateField(key=STATE_KEY, shape=(TOTAL_DIM,), unit=unit),))
 
 
 def motor_keys() -> tuple[str, ...]:

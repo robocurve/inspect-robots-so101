@@ -17,8 +17,15 @@ def test_constants() -> None:
     assert packing.MOTORS[-1] == "gripper"
 
 
-def test_state_spec_keys_match_state_key() -> None:
-    assert packing.STATE_SPEC.keys == frozenset({"joint_pos"})
+@pytest.mark.parametrize(
+    ("use_degrees", "unit"),
+    [(True, "deg+normalized"), (False, "normalized")],
+)
+def test_state_spec_tracks_native_unit_mode(use_degrees: bool, unit: str) -> None:
+    spec = packing.state_spec(use_degrees=use_degrees)
+    assert spec.keys == frozenset({"joint_pos"})
+    assert spec.fields[0].shape == (6,)
+    assert spec.fields[0].unit == unit
 
 
 def test_motor_keys() -> None:

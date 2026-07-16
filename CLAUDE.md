@@ -63,9 +63,10 @@ the configured cameras, packed `joint_pos` state). That makes
 - `SOArmEmbodiment.step()` **always clamps** to `SOArmConfig.joint_low/high` before
   commanding, independent of any `Approver` (and on top of LeRobot's
   `max_relative_target`). This is the last line of defense.
-- LeRobot's postprocessor already unnormalizes to native motor units, so the
-  embodiment does **not** renormalize the gripper — it commands clamped values
-  verbatim. Keep it that way (units honesty: train and run in the same units).
+- LeRobot's postprocessor already returns native motor units, so the embodiment
+  does **not** renormalize actions. It commands clamped values verbatim. Keep
+  `SOArmConfig.use_degrees` and `LeRobotPolicyConfig.use_degrees` synchronized;
+  the state declaration and automatic clamp bounds derive from that mode.
 - The declared `control_mode` is `joint_pos` (absolute). Delta checkpoints are
   converted to absolute *inside* `step()` (`joints_are_delta=True`) so the declared
   semantics stay honest. Compat cannot verify abs-vs-delta — that's a hardware check.

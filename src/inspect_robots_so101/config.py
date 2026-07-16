@@ -23,15 +23,18 @@ from inspect_robots.spaces import (
     ObservationSpace,
 )
 
-from inspect_robots_so101.packing import NUM_JOINTS, STATE_KEY, STATE_SPEC, TOTAL_DIM
+from inspect_robots_so101 import packing
+from inspect_robots_so101.packing import NUM_JOINTS, STATE_KEY, TOTAL_DIM
 
 _T = TypeVar("_T", bound="_FromKwargs")
 
 # Conservative default action limits: the five revolute joints in [-180, 180]
 # degrees, the gripper in [0, 100]. These are SAFETY limits — override with your
 # real, calibrated SO-ARM joint limits before trusting them on hardware.
-_DEFAULT_LOW: tuple[float, ...] = (-180.0,) * NUM_JOINTS + (0.0,)
-_DEFAULT_HIGH: tuple[float, ...] = (180.0,) * NUM_JOINTS + (100.0,)
+_DEGREE_LOW: tuple[float, ...] = (-180.0,) * NUM_JOINTS + (0.0,)
+_DEGREE_HIGH: tuple[float, ...] = (180.0,) * NUM_JOINTS + (100.0,)
+_NORMALIZED_LOW: tuple[float, ...] = (-100.0,) * NUM_JOINTS + (0.0,)
+_NORMALIZED_HIGH: tuple[float, ...] = (100.0,) * NUM_JOINTS + (100.0,)
 
 DEFAULT_CAMERAS: tuple[str, ...] = ("front",)
 
@@ -72,8 +75,11 @@ class SOArmConfig(_FromKwargs):
     control_hz: float = 30.0
     cam_height: int = 480
     cam_width: int = 640
-    joint_low: tuple[float, ...] = _DEFAULT_LOW
-    joint_high: tuple[float, ...] = _DEFAULT_HIGH
+    # The degree tuples are identity sentinels as well as the public defaults.
+    # __post_init__ replaces only omitted defaults in normalized mode, preserving
+    # explicit calibrated tuples in either mode.
+    joint_low: tuple[float, ...] = _DEGREE_LOW
+    joint_high: tuple[float, ...] = _DEGREE_HIGH
     home_pose: tuple[float, ...] | None = None
     joints_are_delta: bool = False
     use_degrees: bool = True
@@ -86,6 +92,11 @@ class SOArmConfig(_FromKwargs):
     camera_configs: Any = None
 
     def __post_init__(self) -> None:
+        if not self.use_degrees:
+            if self.joint_low is _DEGREE_LOW:
+                object.__setattr__(self, "joint_low", _NORMALIZED_LOW)
+            if self.joint_high is _DEGREE_HIGH:
+                object.__setattr__(self, "joint_high", _NORMALIZED_HIGH)
         for name in ("joint_low", "joint_high"):
             if len(getattr(self, name)) != TOTAL_DIM:
                 raise ValueError(f"{name} must have {TOTAL_DIM} entries")
@@ -95,23 +106,14 @@ class SOArmConfig(_FromKwargs):
             raise ValueError(
                 f"robot_type must be one of {VALID_ROBOT_TYPES}, got {self.robot_type!r}"
             )
-        if not self.use_degrees:
-            # Supporting normalized (+/-100) joints means deriving STATE_SPEC units
-            # and the clamp bounds from the config throughout packing/policy/
-            # embodiment; not implemented yet. Tracked as an issue.
-            raise ValueError(
-                "use_degrees=False is not supported: this package's state spec and "
-                "default joint limits assume degrees (lerobot's SO follower default). "
-                "Leave use_degrees=True, or file/upvote the issue for normalized units."
-            )
         if self.home_pose is not None and self.max_relative_target is None:
             # Homing sends ONE absolute command; without lerobot's
             # max_relative_target slew limit the arm would slam to home at full
             # speed from wherever it is. Interpolated homing is tracked as an issue.
             raise ValueError(
                 "home_pose without max_relative_target would command a full-speed "
-                "jump to the home pose; set SOArmConfig.max_relative_target (degrees "
-                "per step) to slew-limit it, or unset home_pose"
+                "jump to the home pose; set SOArmConfig.max_relative_target (native "
+                "motor units per step) to slew-limit it, or unset home_pose"
             )
 
     @property
@@ -142,6 +144,9 @@ class LeRobotPolicyConfig(_FromKwargs):
     chunk_size: int = 50
     cam_height: int = 480
     cam_width: int = 640
+    # Must match SOArmConfig.use_degrees so the policy's declared observation
+    # contract reflects the motor positions it receives.
+    use_degrees: bool = True
 
     def __post_init__(self) -> None:
         if self.chunk_size < 1:
@@ -173,10 +178,16 @@ def action_box(
     return Box(shape=(TOTAL_DIM,), low=low, high=high, semantics=ACTION_SEMANTICS)
 
 
-def observation_space(height: int, width: int, names: tuple[str, ...]) -> ObservationSpace:
-    """The shared observation space: the configured cameras + packed 6-D ``joint_pos``."""
+def observation_space(
+    height: int,
+    width: int,
+    names: tuple[str, ...],
+    *,
+    use_degrees: bool = True,
+) -> ObservationSpace:
+    """Build cameras and packed motor state in the configured native units."""
     return ObservationSpace(
         cameras=camera_specs(height, width, names),
         state_keys=frozenset({STATE_KEY}),
-        state=STATE_SPEC,
+        state=packing.state_spec(use_degrees=use_degrees),
     )
