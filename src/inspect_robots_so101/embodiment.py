@@ -146,7 +146,10 @@ class SOArmEmbodiment:
             name="so_arm",
             action_space=action_box(low=self._cfg.low, high=self._cfg.high),
             observation_space=observation_space(
-                self._cfg.cam_height, self._cfg.cam_width, self._cfg.cameras
+                self._cfg.cam_height,
+                self._cfg.cam_width,
+                self._cfg.cameras,
+                use_degrees=self._cfg.use_degrees,
             ),
             control_hz=self._cfg.control_hz,
             is_simulated=False,

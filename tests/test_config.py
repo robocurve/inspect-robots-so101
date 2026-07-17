@@ -35,6 +35,7 @@ def test_policy_defaults() -> None:
     assert cfg.state_key == "joint_pos"
     assert cfg.cameras == DEFAULT_CAMERAS
     assert cfg.chunk_size == 50
+    assert cfg.use_degrees is True
 
 
 def test_policy_rejects_nonpositive_chunk_size() -> None:
@@ -89,10 +90,35 @@ def test_soarm_accepts_so100() -> None:
     assert SOArmConfig(robot_type="so100_follower").robot_type == "so100_follower"
 
 
-def test_soarm_rejects_use_degrees_false() -> None:
-    # Normalized (+/-100) units would silently break STATE_SPEC and the clamps.
-    with pytest.raises(ValueError, match="use_degrees=False is not supported"):
-        SOArmConfig(use_degrees=False)
+def test_soarm_normalized_mode_derives_safe_limits() -> None:
+    cfg = SOArmConfig(use_degrees=False)
+    assert cfg.joint_low == (-100.0,) * 5 + (0.0,)
+    assert cfg.joint_high == (100.0,) * 6
+    assert cfg.low[0] == pytest.approx(-100.0)
+    assert cfg.high[0] == pytest.approx(100.0)
+
+
+def test_soarm_normalized_mode_preserves_explicit_limits() -> None:
+    low = (-75.0,) * 5 + (10.0,)
+    high = (80.0,) * 5 + (90.0,)
+    cfg = SOArmConfig(use_degrees=False, joint_low=low, joint_high=high)
+    assert cfg.joint_low == low
+    assert cfg.joint_high == high
+
+
+def test_soarm_only_derives_the_omitted_limit() -> None:
+    high = (80.0,) * 5 + (90.0,)
+    cfg = SOArmConfig(use_degrees=False, joint_high=high)
+    assert cfg.joint_low == (-100.0,) * 5 + (0.0,)
+    assert cfg.joint_high == high
+
+
+def test_soarm_normalized_mode_preserves_explicit_degree_sized_limits() -> None:
+    low = tuple(float(value) for value in [-180] * 5 + [0])
+    high = tuple(float(value) for value in [180] * 5 + [100])
+    cfg = SOArmConfig(use_degrees=False, joint_low=low, joint_high=high)
+    assert cfg.joint_low == (-180.0,) * 5 + (0.0,)
+    assert cfg.joint_high == (180.0,) * 5 + (100.0,)
 
 
 def test_camera_specs() -> None:

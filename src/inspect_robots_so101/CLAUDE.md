@@ -7,7 +7,7 @@ The package is `mypy --strict` clean, ships `py.typed`, and is 100%-covered.
 
 | Module | Responsibility |
 |--------|----------------|
-| `packing.py` | **Pure** 6-D SO-ARM packing — the single source of truth for the motor order (`shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll, gripper`) and how the flat vector maps to LeRobot's `"<motor>.pos"` dicts. `to_action_dict`/`from_obs_dict`/`validate_dim`, `STATE_KEY`, `STATE_SPEC`, `MOTORS`. No optional deps. |
+| `packing.py` | **Pure** 6-D SO-ARM packing: the single source of truth for the motor order (`shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll, gripper`) and how the flat vector maps to LeRobot's `"<motor>.pos"` dicts. `to_action_dict`/`from_obs_dict`/`validate_dim`, config-derived `state_spec`, `STATE_KEY`, `MOTORS`. No optional deps. |
 | `config.py` | `SOArmConfig` / `LeRobotPolicyConfig` (frozen, `from_kwargs` for CLI scalars) + shared `action_box()` / `observation_space()` / `ACTION_SEMANTICS` so both components declare an **identical** contract. |
 | `operator.py` | `OperatorIO` (injectable stdin/stdout) for readiness + success prompts; `default_poll_end` (real TTY poll, `# pragma: no cover`). |
 | `policy.py` | `LeRobotPolicy` — wraps a LeRobot checkpoint. `act()` builds the RAW robot payload (`"<motor>.pos"` floats, frames keyed by camera name, `task`), runs the injectable `predict_fn`, truncates to `chunk_size`, returns an `ActionChunk`. Real in-process inference is `_default_predict` (lazy torch + lerobot; obs prep via lerobot's own `raw_observation_to_observation`) — NOT pragma'd: it is covered by `sys.modules`-fake tests, and its real import paths are validated by the `lerobot-seam` CI job. |

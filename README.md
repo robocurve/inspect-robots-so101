@@ -100,7 +100,7 @@ emb = SOArmEmbodiment(SOArmConfig(
     port="/dev/ttyACM0",
     robot_type="so101_follower",
     robot_id="my_follower",    # the id you ran `lerobot-calibrate` with
-    max_relative_target=10.0,  # lerobot's slew limit (deg/step); required for home_pose
+    max_relative_target=10.0,  # native-unit slew limit; required for home_pose
     cameras=("front",),
     camera_configs={"front": OpenCVCameraConfig(index_or_path=0, width=640, height=480, fps=30)},
 ))
@@ -126,17 +126,18 @@ Unattended runs simply run to `max_steps` and score as failures.
   *inside* `step()`, independent of any Inspect Robots `Approver` and on top of LeRobot's
   own `max_relative_target` slew limit. Unclamped model outputs can never reach
   the motors. **Set these to your real, calibrated SO-ARM joint limits** (the
-  defaults are conservative placeholders: joints ±180°, gripper 0–100).
+  defaults are conservative placeholders: joints ±180° in degree mode or ±100
+  in normalized mode, with the gripper at 0–100 in both modes).
 - **Use `ClampApprover`** on hardware for a second layer.
-- **Native units, no renormalization.** LeRobot's postprocessor unnormalizes the
-  policy output to the robot's native motor units (degrees for joints, 0–100 for
-  the gripper), so the embodiment commands them verbatim after the clamp. Train
-  and run the policy in the *same* units. `use_degrees=False` (lerobot's
-  normalized ±100 mode) is rejected: the state spec and default limits here
-  assume degrees. Also note the units are *degrees* while Inspect Robots's canonical
-  `joint_pos` convention is radians: the compat check compares state keys
-  only, so pairing either component with a third-party counterpart will *not*
-  flag a unit mismatch. Verify units yourself when mixing stacks.
+- **Native units, no renormalization.** The embodiment commands the policy
+  output verbatim after the clamp. Set the same `use_degrees` value on
+  `SOArmConfig` and `LeRobotPolicyConfig`: `True` uses degrees for arm joints,
+  while `False` uses LeRobot's normalized ±100 joint positions. The gripper is
+  0–100 in both modes. The declared state specification and automatic clamp
+  bounds follow that value. Inspect Robots compatibility currently compares
+  state keys, not units, so it will not flag different values across components
+  or unit mismatches with third-party counterparts. Verify units when mixing
+  stacks.
 - **Homing is slew-limited or refused.** `home_pose` sends a single absolute
   command, so the config requires `max_relative_target` (LeRobot's per-step slew
   limit) whenever `home_pose` is set. Otherwise the arm would slam to home at
@@ -152,12 +153,13 @@ Unattended runs simply run to `max_steps` and score as failures.
 `SOArmConfig`: `port`, `robot_type`, `robot_id`, `calibration_dir`, `cameras`,
 `camera_configs`, `control_hz`, `cam_height/width`, `joint_low/high`,
 `home_pose` (requires `max_relative_target`), `joints_are_delta`, `use_degrees`
-(must stay `True`), `max_relative_target`, `disable_torque_on_disconnect`.
+(defaults to `True`), `max_relative_target`, `disable_torque_on_disconnect`.
 `robot_type` is validated (`so101_follower` / `so100_follower`) but is a label:
 at lerobot v0.5.x both names alias the same driver class, so it changes no
 runtime behavior.
 `LeRobotPolicyConfig`: `pretrained_path`, `policy_type`, `device`, `cameras`,
-`state_key`, `chunk_size`, `cam_height/width`.
+`state_key`, `chunk_size`, `cam_height/width`, `use_degrees`. Set its
+`use_degrees` value to match the embodiment.
 
 Scalar knobs are settable from the CLI:
 `inspect-robots run -P pretrained_path=lerobot/smolvla_base -E port=/dev/ttyACM0 ...`.

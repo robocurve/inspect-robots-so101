@@ -164,7 +164,10 @@ class LeRobotPolicy:
             name="lerobot",
             action_space=action_box(),  # semantics only; the embodiment owns limits
             observation_space=observation_space(
-                self._cfg.cam_height, self._cfg.cam_width, self._cfg.cameras
+                self._cfg.cam_height,
+                self._cfg.cam_width,
+                self._cfg.cameras,
+                use_degrees=self._cfg.use_degrees,
             ),
             # Intentionally None: advertising a rate would trip a (harmless) compat
             # control_rate warning. The embodiment paces the rollout.

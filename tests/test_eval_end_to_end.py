@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
+import pytest
 from inspect_robots import eval as rl_eval
 
 from inspect_robots_so101 import packing
@@ -44,10 +45,13 @@ def _always_yes_operator() -> OperatorIO:
     return OperatorIO(input_fn=lambda _p: "y", output_fn=lambda _m: None)
 
 
-def test_eval_scores_success_end_to_end() -> None:
-    policy = LeRobotPolicy(LeRobotPolicyConfig(chunk_size=1), predict_fn=_predict)
+@pytest.mark.parametrize("use_degrees", [True, False])
+def test_eval_scores_success_end_to_end(use_degrees: bool) -> None:
+    policy = LeRobotPolicy(
+        LeRobotPolicyConfig(chunk_size=1, use_degrees=use_degrees), predict_fn=_predict
+    )
     embodiment = SOArmEmbodiment(
-        SOArmConfig(),
+        SOArmConfig(use_degrees=use_degrees),
         driver_factory=lambda _c: _FakeDriver(),
         operator=_always_yes_operator(),
         poll_end=lambda: True,  # operator ends every episode immediately

@@ -54,6 +54,12 @@ def test_info_and_config_zero_arg() -> None:
     assert pol.config.action_horizon == 50
 
 
+def test_normalized_info_declares_normalized_state() -> None:
+    pol = LeRobotPolicy(LeRobotPolicyConfig(use_degrees=False))
+    state = pol.info.observation_space.state
+    assert state is not None and state.fields[0].unit == "normalized"
+
+
 def test_act_builds_raw_lerobot_obs_and_chunk() -> None:
     actions = np.arange(2 * 6, dtype=float).reshape(2, 6)
     predict, captured = _fake_predict(actions)

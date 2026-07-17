@@ -8,7 +8,12 @@ from inspect_robots.policy import PolicyConfig, PolicyInfo
 from inspect_robots.registry import resolve
 from inspect_robots.spaces import ActionSemantics, Box
 
-from inspect_robots_so101.config import action_box, observation_space
+from inspect_robots_so101.config import (
+    LeRobotPolicyConfig,
+    SOArmConfig,
+    action_box,
+    observation_space,
+)
 from inspect_robots_so101.embodiment import SOArmEmbodiment
 from inspect_robots_so101.policy import LeRobotPolicy
 
@@ -18,6 +23,17 @@ def test_lerobot_soarm_compatible_no_errors_no_warnings() -> None:
     assert report.ok is True
     assert report.errors == []
     assert report.warnings == []
+
+
+def test_normalized_lerobot_soarm_pair_declares_matching_contract() -> None:
+    policy = LeRobotPolicy(LeRobotPolicyConfig(use_degrees=False))
+    embodiment = SOArmEmbodiment(SOArmConfig(use_degrees=False))
+    report = check_compatibility(policy, embodiment)
+    assert report.ok is True
+    assert report.issues == []
+    assert policy.info.observation_space.state == embodiment.info.observation_space.state
+    assert policy.info.observation_space.state is not None
+    assert policy.info.observation_space.state.fields[0].unit == "normalized"
 
 
 def test_builtin_task_is_realizable() -> None:
