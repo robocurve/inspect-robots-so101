@@ -163,8 +163,7 @@ class SOArmEmbodiment:
         self._last_state = None
         if self._driver is None:
             self._driver = self._driver_factory(self._cfg)
-        if self._cfg.home_pose is not None:
-            self._send(np.asarray(self._cfg.home_pose, dtype=np.float64))
+        self._home()
         self._operator.wait_ready()
         self._instruction = scene.instruction
         self.num_steps = 0
@@ -226,6 +225,28 @@ class SOArmEmbodiment:
         if self._driver is None:  # pragma: no cover - reset() always connects first
             raise RuntimeError("step() called before reset()")
         return self._driver
+
+    def _home(self) -> None:
+        """Drive to home_pose, interpolating in bounded steps of max_relative_target."""
+        if self._cfg.home_pose is None:
+            return
+        target = np.asarray(self._cfg.home_pose, dtype=np.float64)
+        step_limit = self._cfg.max_relative_target
+        # SOArmConfig enforces max_relative_target when home_pose is set
+        assert step_limit is not None
+
+        raw = self._require_driver().get_observation()
+        current = packing.from_obs_dict(raw)
+        while True:
+            diff = target - current
+            if np.all(np.abs(diff) <= step_limit):
+                self._send(target)
+                self._pace()
+                break
+            step_delta = np.clip(diff, -step_limit, step_limit)
+            current = current + step_delta
+            self._send(current)
+            self._pace()
 
     def _send(self, cmd: Vec) -> None:
         """Clamp to joint limits (safety backstop) and command the motors."""

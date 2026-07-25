@@ -141,7 +141,7 @@ def _default_predict(cfg: LeRobotPolicyConfig) -> PredictFn:
         out = torch.stack(
             [postprocessor(chunk[:, i, :]) for i in range(chunk.shape[1])], dim=1
         ).squeeze(0)
-        return out.detach().cpu().numpy()  # type: ignore[no-any-return]
+        return out.detach().cpu().numpy()
 
     return _predict
 

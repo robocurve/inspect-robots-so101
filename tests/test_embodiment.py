@@ -97,6 +97,17 @@ def test_reset_returns_observation_and_homes() -> None:
     assert len(drv.commands) == 1  # homing command issued
 
 
+def test_reset_interpolates_homing_when_far() -> None:
+    cfg = SOArmConfig(home_pose=(5.0,) * 6, max_relative_target=2.0)
+    emb, drv, _ = _build(cfg)
+    emb.reset(Scene(id="s", instruction="reach"))
+    # Steps: 2.0, 4.0, 5.0
+    assert len(drv.commands) == 3
+    assert drv.commands[0][0] == pytest.approx(2.0)
+    assert drv.commands[1][0] == pytest.approx(4.0)
+    assert drv.commands[2][0] == pytest.approx(5.0)
+
+
 def test_observation_records_monotonic_capture_times() -> None:
     times = iter([10.0, 10.25])
     emb = SOArmEmbodiment(
