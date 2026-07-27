@@ -108,6 +108,14 @@ def test_reset_interpolates_homing_when_far() -> None:
     assert drv.commands[2][0] == pytest.approx(5.0)
 
 
+def test_reset_homing_raises_on_non_finite_observation() -> None:
+    cfg = SOArmConfig(home_pose=(5.0,) * 6, max_relative_target=2.0)
+    driver = FakeDriver(state=np.full(6, np.nan))
+    emb = SOArmEmbodiment(cfg, driver_factory=lambda _c: driver, operator=_operator())
+    with pytest.raises(RuntimeError, match="non-finite values"):
+        emb.reset(Scene(id="s", instruction="reach"))
+
+
 def test_observation_records_monotonic_capture_times() -> None:
     times = iter([10.0, 10.25])
     emb = SOArmEmbodiment(

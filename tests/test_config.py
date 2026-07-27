@@ -68,6 +68,8 @@ def test_soarm_rejects_bad_joint_limits() -> None:
 def test_soarm_rejects_bad_home_pose() -> None:
     with pytest.raises(ValueError, match="home_pose must have 6 entries"):
         SOArmConfig(home_pose=(0.0,) * 4)
+    with pytest.raises(ValueError, match="home_pose must contain finite numbers"):
+        SOArmConfig(home_pose=(float("nan"),) * 6)
 
 
 def test_soarm_accepts_valid_home_pose() -> None:
@@ -79,6 +81,17 @@ def test_soarm_rejects_home_pose_without_slew_limit() -> None:
     # A home_pose without max_relative_target would be a full-speed jump.
     with pytest.raises(ValueError, match="full-speed jump"):
         SOArmConfig(home_pose=(0.0,) * 6)
+
+
+def test_soarm_rejects_invalid_max_relative_target() -> None:
+    with pytest.raises(ValueError, match="max_relative_target must be positive and finite"):
+        SOArmConfig(max_relative_target=0.0)
+    with pytest.raises(ValueError, match="max_relative_target must be positive and finite"):
+        SOArmConfig(max_relative_target=-5.0)
+    with pytest.raises(ValueError, match="max_relative_target must be positive and finite"):
+        SOArmConfig(max_relative_target=float("nan"))
+    with pytest.raises(ValueError, match="max_relative_target must be positive and finite"):
+        SOArmConfig(max_relative_target=float("inf"))
 
 
 def test_soarm_rejects_unknown_robot_type() -> None:

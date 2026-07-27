@@ -237,16 +237,26 @@ class SOArmEmbodiment:
 
         raw = self._require_driver().get_observation()
         current = packing.from_obs_dict(raw)
-        while True:
+        if not np.all(np.isfinite(current)):
+            raise RuntimeError(
+                f"cannot home: initial motor observation contains non-finite values: {current}"
+            )
+
+        max_dist = float(np.max(np.abs(target - current)))
+        if max_dist <= step_limit:
+            self._send(target)
+            self._pace()
+            return
+
+        n_steps = int(np.ceil(max_dist / step_limit))
+        for _ in range(n_steps - 1):
             diff = target - current
-            if np.all(np.abs(diff) <= step_limit):
-                self._send(target)
-                self._pace()
-                break
             step_delta = np.clip(diff, -step_limit, step_limit)
             current = current + step_delta
             self._send(current)
             self._pace()
+        self._send(target)
+        self._pace()
 
     def _send(self, cmd: Vec) -> None:
         """Clamp to joint limits (safety backstop) and command the motors."""

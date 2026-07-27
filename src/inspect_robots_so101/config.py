@@ -11,6 +11,7 @@ Inspect Robots CLI only forwards scalar ``key=value`` pairs.
 from __future__ import annotations
 
 import dataclasses
+import math
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
@@ -100,16 +101,22 @@ class SOArmConfig(_FromKwargs):
         for name in ("joint_low", "joint_high"):
             if len(getattr(self, name)) != TOTAL_DIM:
                 raise ValueError(f"{name} must have {TOTAL_DIM} entries")
-        if self.home_pose is not None and len(self.home_pose) != TOTAL_DIM:
-            raise ValueError(f"home_pose must have {TOTAL_DIM} entries")
+        if self.home_pose is not None:
+            if len(self.home_pose) != TOTAL_DIM:
+                raise ValueError(f"home_pose must have {TOTAL_DIM} entries")
+            if not all(math.isfinite(v) for v in self.home_pose):
+                raise ValueError(f"home_pose must contain finite numbers, got {self.home_pose}")
+        if self.max_relative_target is not None and (
+            not math.isfinite(self.max_relative_target) or self.max_relative_target <= 0
+        ):
+            raise ValueError(
+                f"max_relative_target must be positive and finite, got {self.max_relative_target}"
+            )
         if self.robot_type not in VALID_ROBOT_TYPES:
             raise ValueError(
                 f"robot_type must be one of {VALID_ROBOT_TYPES}, got {self.robot_type!r}"
             )
         if self.home_pose is not None and self.max_relative_target is None:
-            # Homing sends ONE absolute command; without lerobot's
-            # max_relative_target slew limit the arm would slam to home at full
-            # speed from wherever it is. Interpolated homing is tracked as an issue.
             raise ValueError(
                 "home_pose without max_relative_target would command a full-speed "
                 "jump to the home pose; set SOArmConfig.max_relative_target (native "
