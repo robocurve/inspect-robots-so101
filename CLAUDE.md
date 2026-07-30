@@ -75,6 +75,11 @@ the configured cameras, packed `joint_pos` state). That makes
   judgement-reading scorers such as `operator` score. `success_at_end` counts
   only embodiment-detected `"success"` terminations, which this embodiment
   never emits.
+- `control_hz` is a fixed step rate only while `settle_tolerance` is `None`,
+  which is the default. Setting a tolerance makes `step()` and homing in
+  `reset()` wait for the arm joints to reach the driver's accepted command, so
+  `control_hz` becomes a floor on step duration. Keep settling off unless the
+  policy needs converged observations; enabling it changes VLA cadence.
 
 ## Out of scope
 

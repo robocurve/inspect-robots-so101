@@ -187,7 +187,9 @@ raises `EmbodimentFault` with instructions to use a real TTY or inject
 `SOArmConfig`: `port`, `robot_type`, `robot_id`, `calibration_dir`, `cameras`,
 `camera_configs`, `control_hz`, `cam_height/width`, `joint_low/high`,
 `home_pose` (requires `max_relative_target`), `joints_are_delta`, `use_degrees`
-(defaults to `True`), `max_relative_target`, `disable_torque_on_disconnect`.
+(defaults to `True`), `max_relative_target`, `disable_torque_on_disconnect`,
+`settle_tolerance` (default `None`), `settle_timeout_s` (default `1.0`),
+`settle_timeout_budget` (default `20`).
 `robot_type` is validated (`so101_follower` / `so100_follower`) but is a label:
 at lerobot v0.5.x both names alias the same driver class, so it changes no
 runtime behavior.
@@ -197,6 +199,40 @@ runtime behavior.
 
 Scalar knobs are settable from the CLI:
 `inspect-robots run -P pretrained_path=lerobot/smolvla_base -E port=/dev/ttyACM0 ...`.
+
+### Settling before observing
+
+By default, `step()` commands a pose, paces out the control period, and
+observes without checking that the arm arrived. LeRobot's `send_action()`
+returns immediately, so a chunked policy can finish replaying a chunk and plan
+its next motion from a pose the arm has not reached.
+
+Set `settle_tolerance` to make `step()` and homing in `reset()` poll the driver
+before observing:
+
+```bash
+inspect-robots run --instruction "Reach for the cube" --policy lerobot --embodiment so_arm \
+  -E settle_tolerance=2.0 -E settle_timeout_s=1.0 -E settle_timeout_budget=20
+```
+
+The tolerance uses the configured action units: degrees when `use_degrees=True`
+and LeRobot normalized units otherwise. Choose it from measurements on your
+rig. Settling is off by default so closed-loop VLA cadence is unchanged.
+
+Only the five arm joints are checked. The gripper is excluded because one
+closing on an object may never reach its target. Settling also targets the
+action the driver accepted, after its internal `max_relative_target`
+truncation, rather than the larger pose the policy originally requested.
+
+Timeouts are not trial failures. The step observes anyway and reports
+`settle_timeouts`, plus `settled` and `settle_residual` when a wait ran, in
+`StepResult.info`. After `settle_timeout_budget` timeouts, settling disables
+itself for the rest of that trial, logs one warning with the worst motor and
+residual, and reports `settle_disabled=True`. The next `reset()` clears the
+counter and enables settling again.
+
+With settling enabled, `control_hz` is a floor on step duration. A slow move or
+timeout can make a step take longer than one control period.
 
 ## Development
 

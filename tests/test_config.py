@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 from inspect_robots.spaces import CameraSpec
 
@@ -26,6 +27,9 @@ def test_soarm_defaults() -> None:
     # gripper slot (index 5) bounded [0, 100]; joints bounded by +/-180 degrees.
     assert cfg.low[5] == 0.0 and cfg.high[5] == 100.0
     assert cfg.low[0] == pytest.approx(-180.0)
+    assert cfg.settle_tolerance is None
+    assert cfg.settle_timeout_s == pytest.approx(1.0)
+    assert cfg.settle_timeout_budget == 20
 
 
 def test_policy_defaults() -> None:
@@ -53,6 +57,38 @@ def test_soarm_from_kwargs() -> None:
     cfg = SOArmConfig.from_kwargs(port="/dev/ttyUSB0", control_hz=25.0)
     assert cfg.port == "/dev/ttyUSB0"
     assert cfg.control_hz == 25.0
+
+
+def test_soarm_from_kwargs_accepts_settle_cli_scalars() -> None:
+    cfg = SOArmConfig.from_kwargs(
+        settle_tolerance=0.05,
+        settle_timeout_s=2.5,
+        settle_timeout_budget=7,
+    )
+    assert cfg.settle_tolerance == pytest.approx(0.05)
+    assert cfg.settle_timeout_s == pytest.approx(2.5)
+    assert cfg.settle_timeout_budget == 7
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"settle_tolerance": 0.0}, "settle_tolerance must be finite and > 0"),
+        ({"settle_tolerance": -0.01}, "settle_tolerance must be finite and > 0"),
+        ({"settle_tolerance": np.inf}, "settle_tolerance must be finite and > 0"),
+        ({"settle_tolerance": np.nan}, "settle_tolerance must be finite and > 0"),
+        ({"settle_timeout_s": 0.0}, "settle_timeout_s must be finite and > 0"),
+        ({"settle_timeout_s": -0.01}, "settle_timeout_s must be finite and > 0"),
+        ({"settle_timeout_s": np.inf}, "settle_timeout_s must be finite and > 0"),
+        ({"settle_timeout_s": np.nan}, "settle_timeout_s must be finite and > 0"),
+        ({"settle_timeout_budget": 0}, "settle_timeout_budget must be a positive integer"),
+        ({"settle_timeout_budget": 1.5}, "settle_timeout_budget must be a positive integer"),
+        ({"settle_timeout_budget": True}, "settle_timeout_budget must be a positive integer"),
+    ],
+)
+def test_settle_config_validation(kwargs: dict[str, object], message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        SOArmConfig(**kwargs)
 
 
 def test_from_kwargs_rejects_unknown() -> None:

@@ -2,72 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import numpy as np
 import pytest
 from inspect_robots.embodiment import SELF_PACED
 from inspect_robots.scene import Scene
 from inspect_robots.types import OPERATOR_END, Action
 
-from inspect_robots_so101 import packing
+from conftest import FakeDriver, _build, _operator
 from inspect_robots_so101.config import SOArmConfig
 from inspect_robots_so101.embodiment import SOArmEmbodiment, _check_calibrated
-from inspect_robots_so101.operator import OperatorIO
-
-
-class FakeDriver:
-    """Stand-in for a LeRobot SO follower: dict obs of '<motor>.pos' + cameras."""
-
-    def __init__(self, state: np.ndarray | None = None) -> None:
-        self.state = np.zeros(6) if state is None else np.asarray(state, dtype=float)
-        self.commands: list[np.ndarray] = []
-        self.observation_reads = 0
-        self.disconnected = False
-
-    def get_observation(self) -> dict[str, Any]:
-        self.observation_reads += 1
-        obs: dict[str, Any] = packing.to_action_dict(self.state)
-        obs["front"] = np.zeros((4, 4, 3), dtype=np.uint8)
-        return obs
-
-    def send_action(self, action: dict[str, float]) -> dict[str, float]:
-        self.state = packing.from_obs_dict(action)
-        self.commands.append(self.state)
-        return action
-
-    def disconnect(self) -> None:
-        self.disconnected = True
-
-
-def _operator(*, prompts: list[str] | None = None) -> OperatorIO:
-    def _input(prompt: str) -> str:
-        if prompts is not None:
-            prompts.append(prompt)
-        return ""
-
-    return OperatorIO(input_fn=_input, output_fn=lambda _m: None)
-
-
-def _build(
-    cfg: SOArmConfig | None = None,
-    *,
-    driver: FakeDriver | None = None,
-    poll_end_seq: list[bool] | None = None,
-    operator: OperatorIO | None = None,
-):
-    drv = driver or FakeDriver()
-    polls = list(poll_end_seq or [False])
-    sleeps: list[float] = []
-    emb = SOArmEmbodiment(
-        cfg or SOArmConfig(),
-        driver_factory=lambda _c: drv,
-        operator=operator or _operator(),
-        poll_end=lambda: polls.pop(0) if polls else False,
-        sleep_fn=sleeps.append,
-        clock=lambda: 0.0,
-    )
-    return emb, drv, sleeps
 
 
 def test_zero_arg_info_no_hardware() -> None:
