@@ -1,9 +1,8 @@
-"""End-to-end: a full eval() rollout on a mocked SO-ARM + LeRobot policy actually
-scores success — proving the termination_reason -> scorer wiring and chunk replay
-compose (the static compat test cannot show this).
+"""End-to-end: full eval() rollouts on a mocked SO-ARM and LeRobot policy.
 
-Uses Inspect Robots's built-in ``cubepick-reach`` task (``success_at_end`` scorer), so
-the suite stays self-contained: no kitchenbench, no lerobot, no torch, no hardware.
+The test proves the judgement-based wiring (operator end -> before_scoring ->
+operator judgement -> operator scorer) and chunk replay compose. The inline
+task keeps the suite self-contained without hardware, lerobot, or torch.
 """
 
 from __future__ import annotations
@@ -12,6 +11,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from inspect_robots import Scene, Task, TrialRecord, operator_scorer
 from inspect_robots import eval as rl_eval
 
 from inspect_robots_so101 import packing
@@ -41,27 +41,48 @@ def _predict(_obs: Any) -> np.ndarray:
     return np.zeros((1, 6), dtype=np.float32)  # one-action chunk of zeros
 
 
-def _always_yes_operator() -> OperatorIO:
-    return OperatorIO(input_fn=lambda _p: "y", output_fn=lambda _m: None)
+def _grade_yes(record: TrialRecord, scene: Scene) -> None:
+    del scene
+    assert record.termination_reason == "operator_end"
+    record.operator_judgement = "y"
 
 
 @pytest.mark.parametrize("use_degrees", [True, False])
 def test_eval_scores_success_end_to_end(use_degrees: bool) -> None:
     policy = LeRobotPolicy(
-        LeRobotPolicyConfig(chunk_size=1, use_degrees=use_degrees), predict_fn=_predict
+        LeRobotPolicyConfig(
+            cam_height=4,
+            cam_width=4,
+            chunk_size=1,
+            use_degrees=use_degrees,
+        ),
+        predict_fn=_predict,
     )
     embodiment = SOArmEmbodiment(
-        SOArmConfig(use_degrees=use_degrees),
+        SOArmConfig(cam_height=4, cam_width=4, use_degrees=use_degrees),
         driver_factory=lambda _c: _FakeDriver(),
-        operator=_always_yes_operator(),
+        operator=OperatorIO(input_fn=lambda _p: "", output_fn=lambda _m: None),
         poll_end=lambda: True,  # operator ends every episode immediately
         sleep_fn=lambda _d: None,
         clock=lambda: 0.0,
     )
+    task = Task(
+        name="so101-operator-e2e",
+        scenes=[Scene(id="operator-e2e", instruction="reach")],
+        scorer=operator_scorer(),
+        max_steps=1,
+    )
 
-    logs = rl_eval("cubepick-reach", policy, embodiment, sinks=[], seed=0)
+    logs = rl_eval(
+        task,
+        policy,
+        embodiment,
+        sinks=[],
+        seed=0,
+        before_scoring=_grade_yes,
+    )
 
     assert len(logs) == 1
     log = logs[0]
     assert log.status == "success"
-    assert log.results.metrics["success_at_end"] == 1.0
+    assert log.results.metrics["operator"] == 1.0

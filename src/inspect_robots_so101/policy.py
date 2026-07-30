@@ -197,6 +197,10 @@ class LeRobotPolicy:
             images = {cam: observation.images[cam] for cam in cfg.cameras}
         except KeyError as exc:
             raise ValueError(f"observation missing camera {exc} for lerobot policy") from exc
+        expected = (cfg.cam_height, cfg.cam_width, 3)
+        for name, img in images.items():
+            if img.shape != expected:
+                raise ValueError(f"camera {name!r} returned shape {img.shape}, expected {expected}")
         if cfg.state_key not in observation.state:
             raise ValueError(f"observation missing state key {cfg.state_key!r}")
         state = packing.validate_dim(observation.state[cfg.state_key])

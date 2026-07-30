@@ -26,7 +26,8 @@ arm:
 - **`lerobot` policy**: wraps a LeRobot checkpoint (ACT, SmolVLA, π0, diffusion…)
   and runs it in process on the GPU, returning an action chunk per inference.
 - **`so_arm` embodiment**: the LeRobot SO follower driver (Feetech bus), with a
-  hard safety clamp, operator-in-the-loop success, and self-paced control.
+  hard safety clamp, camera frames validated against the configured resolution,
+  operator-in-the-loop episode end, and self-paced control.
 
 Both declare the same 6-D joint-position contract (`shoulder_pan`,
 `shoulder_lift`, `elbow_flex`, `wrist_flex`, `wrist_roll`, `gripper`; the cameras
@@ -34,7 +35,7 @@ you configure; packed `joint_pos` state), so Inspect Robots's compatibility chec
 with zero errors and zero warnings, verifiable before any motion.
 
 ```bash
-inspect-robots run --task cubepick-reach --policy lerobot --embodiment so_arm
+inspect-robots run --instruction "Reach for the cube" --policy lerobot --embodiment so_arm
 ```
 
 > This is the SO-ARM/LeRobot sibling of
@@ -44,7 +45,7 @@ inspect-robots run --task cubepick-reach --policy lerobot --embodiment so_arm
 ## Install (on the robot/GPU machine)
 
 ```bash
-# Inspect Robots isn't on PyPI yet; uv resolves it from git. The `lerobot` extra pulls
+# Inspect Robots resolves from PyPI. The `lerobot` extra pulls
 # torch + lerobot + the Feetech motor bus the SO follower uses.
 uv pip install "inspect-robots-so101[lerobot] @ git+https://github.com/robocurve/inspect-robots-so101"
 ```
@@ -91,11 +92,21 @@ You must point the embodiment at your serial port, calibration id, and camera
 config, and the policy at a checkpoint:
 
 ```python
-from inspect_robots import eval
+from inspect_robots import Scene, Task, eval, operator_scorer
 from inspect_robots.approver import ClampApprover
 from inspect_robots_so101 import LeRobotPolicy, SOArmEmbodiment, SOArmConfig, LeRobotPolicyConfig
 from lerobot.cameras.opencv import OpenCVCameraConfig  # your camera backend
 
+def grade_trial(record, _scene):
+    record.operator_judgement = input("Outcome? [y/n/partial/skip]: ")
+    record.operator_note = input("Grader note (optional): ")
+
+task = Task(
+    name="operator-graded-reach",
+    scenes=[Scene(id="reach", instruction="Reach for the cube")],
+    scorer=operator_scorer(),
+    max_steps=1200,
+)
 emb = SOArmEmbodiment(SOArmConfig(
     port="/dev/ttyACM0",
     robot_type="so101_follower",
@@ -109,16 +120,40 @@ pol = LeRobotPolicy(LeRobotPolicyConfig(
 ))
 
 with emb:  # guarantees disconnect (and torque-off) even if the eval raises
-    (log,) = eval("cubepick-reach", pol, emb,
-                  approver=ClampApprover(emb.info.action_space))  # defense in depth
+    (log,) = eval(task, pol, emb,
+                  approver=ClampApprover(emb.info.action_space),
+                  before_scoring=grade_trial)  # records the verdict before scoring
 print(log.status, log.results.metrics)
 ```
 
 (Equivalently, wrap the `eval(...)` in `try: ... finally: emb.close()`.)
 
-At each episode end the embodiment asks the operator (y/N); a `yes` records
-`termination_reason="success"`, which the task's `success_at_end` scorer reads.
-Unattended runs simply run to `max_steps` and score as failures.
+Pressing the end-episode key terminates with
+`termination_reason="operator_end"`. The embodiment itself asks no grading
+questions. On attended CLI runs, the framework then asks once per trial for a
+`[y/n/partial/skip]` verdict and an optional grader note.
+
+Prompting and scoring are separate. Adhoc `--instruction` runs, such as the CLI
+example above, default to the `operator` scorer and score the recorded verdict.
+Registered tasks bring their own scorers, and the CLI rejects `--scorer` for
+them. The built-in `cubepick-reach` task uses `success_at_end`, which never
+reads operator judgements. An attended `--task cubepick-reach` run therefore
+collects a verdict but scores 0.0.
+
+Direct Python `eval()` calls never show the framework's CLI prompt. The example
+uses both pieces required for operator grading: `before_scoring` records the
+verdict, and the inline task's `operator_scorer()` reads it. A hook alone does
+not change a task's scorer, while `operator_scorer()` alone has no judgement to
+read.
+
+> [!WARNING]
+> Do not pair `success_at_end` with attended operator-graded runs. It counts only
+> embodiment-detected `"success"` terminations, so it scores `operator_end` as a
+> failure.
+
+The readiness prompt needs an interactive terminal. A closed or dead stdin
+raises `EmbodimentFault` with instructions to use a real TTY or inject
+`OperatorIO(input_fn=...)`; an open but silent pipe can still block.
 
 ## Safety
 
@@ -153,7 +188,9 @@ Unattended runs simply run to `max_steps` and score as failures.
 `SOArmConfig`: `port`, `robot_type`, `robot_id`, `calibration_dir`, `cameras`,
 `camera_configs`, `control_hz`, `cam_height/width`, `joint_low/high`,
 `home_pose` (requires `max_relative_target`), `joints_are_delta`, `use_degrees`
-(defaults to `True`), `max_relative_target`, `disable_torque_on_disconnect`.
+(defaults to `True`), `max_relative_target`, `disable_torque_on_disconnect`,
+`settle_tolerance` (default `None`), `settle_timeout_s` (default `1.0`),
+`settle_timeout_budget` (default `20`).
 `robot_type` is validated (`so101_follower` / `so100_follower`) but is a label:
 at lerobot v0.5.x both names alias the same driver class, so it changes no
 runtime behavior.
@@ -163,6 +200,40 @@ runtime behavior.
 
 Scalar knobs are settable from the CLI:
 `inspect-robots run -P pretrained_path=lerobot/smolvla_base -E port=/dev/ttyACM0 ...`.
+
+### Settling before observing
+
+By default, `step()` commands a pose, paces out the control period, and
+observes without checking that the arm arrived. LeRobot's `send_action()`
+returns immediately, so a chunked policy can finish replaying a chunk and plan
+its next motion from a pose the arm has not reached.
+
+Set `settle_tolerance` to make `step()` and homing in `reset()` poll the driver
+before observing:
+
+```bash
+inspect-robots run --instruction "Reach for the cube" --policy lerobot --embodiment so_arm \
+  -E settle_tolerance=2.0 -E settle_timeout_s=1.0 -E settle_timeout_budget=20
+```
+
+The tolerance uses the configured action units: degrees when `use_degrees=True`
+and LeRobot normalized units otherwise. Choose it from measurements on your
+rig. Settling is off by default so closed-loop VLA cadence is unchanged.
+
+Only the five arm joints are checked. The gripper is excluded because one
+closing on an object may never reach its target. Settling also targets the
+action the driver accepted, after its internal `max_relative_target`
+truncation, rather than the larger pose the policy originally requested.
+
+Timeouts are not trial failures. The step observes anyway and reports
+`settle_timeouts`, plus `settled` and `settle_residual` when a wait ran, in
+`StepResult.info`. After `settle_timeout_budget` timeouts, settling disables
+itself for the rest of that trial, logs one warning with the worst motor and
+residual, and reports `settle_disabled=True`. The next `reset()` clears the
+counter and enables settling again.
+
+With settling enabled, `control_hz` is a floor on step duration. A slow move or
+timeout can make a step take longer than one control period.
 
 ## Development
 
@@ -176,7 +247,7 @@ Every public module, class, and function needs a docstring, enforced by Ruff D1;
 state the contract, do not restate the name.
 
 ```bash
-uv venv && uv pip install -e ".[dev]"     # inspect-robots from a git tag
+uv venv && uv pip install -e ".[dev]"     # inspect-robots from PyPI
 uv run pre-commit install
 uv run pytest --cov                        # 100% coverage required
 uv run ruff check . && uv run mypy

@@ -37,15 +37,15 @@ the configured cameras, packed `joint_pos` state). That makes
 - `src/inspect_robots_so101/` — the package (see `src/inspect_robots_so101/CLAUDE.md`).
 - `tests/` — pytest; everything (driver, cameras, model inference, clock, operator
   stdin) is injected, so the suite needs **no hardware, no GPU, no torch, no
-  lerobot, no stdin**. The end-to-end test uses Inspect Robots's built-in
-  `cubepick-reach` task so it stays self-contained.
+  lerobot, no stdin**. The end-to-end test builds an inline `Task` with
+  `operator_scorer()` so it stays self-contained.
 
 ## Working here
 
 - Dev loop: `uv venv && uv pip install -e ".[dev]"`, `uv run pre-commit install`,
   then `uv run pytest --cov`.
-- **Local install gotcha:** `uv pip install -e ".[dev]"` resolves `inspect-robots` from a
-  git tag. To work against a sibling checkout instead:
+- **Local install gotcha:** `uv pip install -e ".[dev]"` resolves `inspect-robots` from
+  PyPI. To work against a sibling checkout instead:
   `uv pip install -e ../inspect-robots` (then `uv pip install -e . --no-deps`).
 - Gates (all blocking in CI): `ruff check .`, `ruff format --check .`,
   `mypy` (strict), `pytest --cov` at **100%**.
@@ -70,8 +70,16 @@ the configured cameras, packed `joint_pos` state). That makes
 - The declared `control_mode` is `joint_pos` (absolute). Delta checkpoints are
   converted to absolute *inside* `step()` (`joints_are_delta=True`) so the declared
   semantics stay honest. Compat cannot verify abs-vs-delta — that's a hardware check.
-- Success reaches the scorer **only** via `StepResult.termination_reason="success"`
-  (stock `rollout` never sets `operator_judgement`).
+- The end-episode keypress terminates with `termination_reason="operator_end"`;
+  the framework prompt then records `operator_judgement`, which is what
+  judgement-reading scorers such as `operator` score. `success_at_end` counts
+  only embodiment-detected `"success"` terminations, which this embodiment
+  never emits.
+- `control_hz` is a fixed step rate only while `settle_tolerance` is `None`,
+  which is the default. Setting a tolerance makes `step()` and homing in
+  `reset()` wait for the arm joints to reach the driver's accepted command, so
+  `control_hz` becomes a floor on step duration. Keep settling off unless the
+  policy needs converged observations; enabling it changes VLA cadence.
 
 ## Out of scope
 
