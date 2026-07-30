@@ -31,6 +31,8 @@ def _far(index: int = 0) -> np.ndarray:
 
 
 def _settled_cfg(**kwargs: Any) -> SOArmConfig:
+    kwargs.setdefault("cam_height", 4)
+    kwargs.setdefault("cam_width", 4)
     kwargs.setdefault("settle_tolerance", 0.05)
     return SOArmConfig(**kwargs)
 
@@ -41,7 +43,7 @@ def _step(emb: SOArmEmbodiment, sleeps: list[float]) -> StepResult:
 
 
 def test_settle_state_is_initialized_during_construction() -> None:
-    emb = SOArmEmbodiment(SOArmConfig(settle_tolerance=0.05))
+    emb = SOArmEmbodiment(SOArmConfig(cam_height=4, cam_width=4, settle_tolerance=0.05))
     assert emb.settle_timeouts == 0
     assert emb._settle_disabled is False
 

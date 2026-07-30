@@ -329,6 +329,10 @@ class SOArmEmbodiment:
         state = packing.from_obs_dict(raw)
         self._last_state = state
         images = {cam: np.asarray(raw[cam], dtype=np.uint8) for cam in self._cfg.cameras}
+        expected = (self._cfg.cam_height, self._cfg.cam_width, 3)
+        for name, img in images.items():
+            if img.shape != expected:
+                raise ValueError(f"camera {name!r} returned shape {img.shape}, expected {expected}")
         return Observation(
             images=images,
             state={packing.STATE_KEY: state},

@@ -26,7 +26,8 @@ arm:
 - **`lerobot` policy**: wraps a LeRobot checkpoint (ACT, SmolVLA, π0, diffusion…)
   and runs it in process on the GPU, returning an action chunk per inference.
 - **`so_arm` embodiment**: the LeRobot SO follower driver (Feetech bus), with a
-  hard safety clamp, operator-in-the-loop episode end, and self-paced control.
+  hard safety clamp, camera frames validated against the configured resolution,
+  operator-in-the-loop episode end, and self-paced control.
 
 Both declare the same 6-D joint-position contract (`shoulder_pan`,
 `shoulder_lift`, `elbow_flex`, `wrist_flex`, `wrist_roll`, `gripper`; the cameras

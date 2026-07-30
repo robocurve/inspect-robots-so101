@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Callable
 from typing import Any
 
@@ -30,8 +31,14 @@ class Clock:
 class FakeDriver:
     """Immediate SO follower stand-in with motor dictionaries and one camera."""
 
-    def __init__(self, state: np.ndarray | None = None) -> None:
+    def __init__(
+        self,
+        state: np.ndarray | None = None,
+        *,
+        frame_shape: tuple[int, ...] = (4, 4, 3),
+    ) -> None:
         self.state = np.zeros(6) if state is None else np.asarray(state, dtype=float)
+        self.frame_shape = frame_shape
         self.commands: list[np.ndarray] = []
         self.observation_reads = 0
         self.disconnected = False
@@ -40,7 +47,7 @@ class FakeDriver:
         """Return the current motor state and a synthetic camera frame."""
         self.observation_reads += 1
         obs: dict[str, Any] = packing.to_action_dict(self.state)
-        obs["front"] = np.zeros((4, 4, 3), dtype=np.uint8)
+        obs["front"] = np.zeros(self.frame_shape, dtype=np.uint8)
         return obs
 
     def send_action(self, action: dict[str, float]) -> dict[str, float]:
@@ -129,11 +136,16 @@ def _build(
     operator: OperatorIO | None = None,
     clock: Callable[[], float] | None = None,
 ):
+    cfg = dataclasses.replace(
+        cfg if cfg is not None else SOArmConfig(),
+        cam_height=4,
+        cam_width=4,
+    )
     drv = driver or FakeDriver()
     polls = list(poll_end_seq or [False])
     sleeps: list[float] = []
     emb = SOArmEmbodiment(
-        cfg if cfg is not None else SOArmConfig(),
+        cfg,
         driver_factory=lambda _c: drv,
         operator=operator or _operator(),
         poll_end=lambda: polls.pop(0) if polls else False,

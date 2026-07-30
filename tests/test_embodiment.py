@@ -47,7 +47,7 @@ def test_reset_returns_observation_and_homes() -> None:
 def test_observation_records_monotonic_capture_times() -> None:
     times = iter([10.0, 10.25])
     emb = SOArmEmbodiment(
-        SOArmConfig(),
+        SOArmConfig(cam_height=4, cam_width=4),
         driver_factory=lambda _c: FakeDriver(),
         operator=_operator(),
         poll_end=lambda: False,
@@ -115,7 +115,7 @@ def test_reset_twice_reuses_driver() -> None:
         return FakeDriver()
 
     emb = SOArmEmbodiment(
-        SOArmConfig(),
+        SOArmConfig(cam_height=4, cam_width=4),
         driver_factory=_factory,
         operator=_operator(),
         poll_end=lambda: False,
@@ -197,6 +197,17 @@ def test_context_manager_closes_on_exception() -> None:
         emb.reset(Scene(id="s", instruction="x"))
         raise RuntimeError("boom")
     assert drv.disconnected is True
+
+
+@pytest.mark.parametrize("shape", [(2, 4, 3), (4, 4, 1)])
+def test_observe_rejects_wrong_camera_shape(shape: tuple[int, ...]) -> None:
+    driver = FakeDriver(frame_shape=shape)
+    emb, _, _ = _build(driver=driver)
+
+    expected = (4, 4, 3)
+    with pytest.raises(ValueError) as exc:
+        emb.reset(Scene(id="s", instruction="x"))
+    assert str(exc.value) == f"camera 'front' returned shape {shape}, expected {expected}"
 
 
 def test_check_calibrated_passes_when_calibrated() -> None:

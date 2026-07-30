@@ -50,10 +50,16 @@ def _grade_yes(record: TrialRecord, scene: Scene) -> None:
 @pytest.mark.parametrize("use_degrees", [True, False])
 def test_eval_scores_success_end_to_end(use_degrees: bool) -> None:
     policy = LeRobotPolicy(
-        LeRobotPolicyConfig(chunk_size=1, use_degrees=use_degrees), predict_fn=_predict
+        LeRobotPolicyConfig(
+            cam_height=4,
+            cam_width=4,
+            chunk_size=1,
+            use_degrees=use_degrees,
+        ),
+        predict_fn=_predict,
     )
     embodiment = SOArmEmbodiment(
-        SOArmConfig(use_degrees=use_degrees),
+        SOArmConfig(cam_height=4, cam_width=4, use_degrees=use_degrees),
         driver_factory=lambda _c: _FakeDriver(),
         operator=OperatorIO(input_fn=lambda _p: "", output_fn=lambda _m: None),
         poll_end=lambda: True,  # operator ends every episode immediately

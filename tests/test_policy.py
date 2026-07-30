@@ -24,8 +24,18 @@ from inspect_robots_so101.config import LeRobotPolicyConfig
 from inspect_robots_so101.policy import LeRobotPolicy
 
 
-def _obs(instruction: str | None = "do it") -> Observation:
-    img = np.zeros((4, 4, 3), dtype=np.uint8)
+def _policy_cfg(**over: Any) -> LeRobotPolicyConfig:
+    values: dict[str, Any] = {"cam_height": 4, "cam_width": 4}
+    values.update(over)
+    return LeRobotPolicyConfig(**values)
+
+
+def _obs(
+    instruction: str | None = "do it",
+    *,
+    image_shape: tuple[int, ...] = (4, 4, 3),
+) -> Observation:
+    img = np.zeros(image_shape, dtype=np.uint8)
     return Observation(
         images={"front": img},
         state={"joint_pos": np.zeros(6)},
@@ -55,7 +65,7 @@ def test_info_and_config_zero_arg() -> None:
 
 
 def test_normalized_info_declares_normalized_state() -> None:
-    pol = LeRobotPolicy(LeRobotPolicyConfig(use_degrees=False))
+    pol = LeRobotPolicy(_policy_cfg(use_degrees=False))
     state = pol.info.observation_space.state
     assert state is not None and state.fields[0].unit == "normalized"
 
@@ -63,7 +73,7 @@ def test_normalized_info_declares_normalized_state() -> None:
 def test_act_builds_raw_lerobot_obs_and_chunk() -> None:
     actions = np.arange(2 * 6, dtype=float).reshape(2, 6)
     predict, captured = _fake_predict(actions)
-    pol = LeRobotPolicy(predict_fn=predict)
+    pol = LeRobotPolicy(_policy_cfg(), predict_fn=predict)
     pol.reset(Scene(id="s", instruction="pick up the cube"))
     chunk = pol.act(_obs())
 
@@ -84,7 +94,7 @@ def test_act_builds_raw_lerobot_obs_and_chunk() -> None:
 
 def test_act_uses_empty_instruction_when_none() -> None:
     predict, captured = _fake_predict(np.zeros((1, 6)))
-    pol = LeRobotPolicy(predict_fn=predict)
+    pol = LeRobotPolicy(_policy_cfg(), predict_fn=predict)
     pol.reset(Scene(id="s", instruction=None))
     pol.act(_obs(instruction=None))
     assert captured["obs"]["task"] == ""
@@ -92,7 +102,7 @@ def test_act_uses_empty_instruction_when_none() -> None:
 
 def test_act_truncates_chunk_to_chunk_size() -> None:
     predict, _ = _fake_predict(np.arange(5 * 6, dtype=float).reshape(5, 6))
-    pol = LeRobotPolicy(LeRobotPolicyConfig(chunk_size=2), predict_fn=predict)
+    pol = LeRobotPolicy(_policy_cfg(chunk_size=2), predict_fn=predict)
     pol.reset(Scene(id="s", instruction="x"))
     chunk = pol.act(_obs())
     assert len(chunk) == 2  # model returned 5; consume only the first chunk_size
@@ -101,7 +111,7 @@ def test_act_truncates_chunk_to_chunk_size() -> None:
 
 def test_act_empty_actions_raises() -> None:
     predict, _ = _fake_predict(np.zeros((0, 6)))
-    pol = LeRobotPolicy(predict_fn=predict)
+    pol = LeRobotPolicy(_policy_cfg(), predict_fn=predict)
     pol.reset(Scene(id="s", instruction="x"))
     with pytest.raises(ValueError, match="empty action chunk"):
         pol.act(_obs())
@@ -109,7 +119,7 @@ def test_act_empty_actions_raises() -> None:
 
 def test_act_wrong_action_width_raises() -> None:
     predict, _ = _fake_predict(np.zeros((2, 7)))
-    pol = LeRobotPolicy(predict_fn=predict)
+    pol = LeRobotPolicy(_policy_cfg(), predict_fn=predict)
     pol.reset(Scene(id="s", instruction="x"))
     with pytest.raises(ValueError, match=r"expected \(N, 6\)"):
         pol.act(_obs())
@@ -117,7 +127,7 @@ def test_act_wrong_action_width_raises() -> None:
 
 def test_act_missing_camera_raises() -> None:
     predict, _ = _fake_predict(np.zeros((1, 6)))
-    pol = LeRobotPolicy(predict_fn=predict)
+    pol = LeRobotPolicy(_policy_cfg(), predict_fn=predict)
     pol.reset(Scene(id="s", instruction="x"))
     obs = Observation(images={}, state={"joint_pos": np.zeros(6)})
     with pytest.raises(ValueError, match="missing camera"):
@@ -126,7 +136,7 @@ def test_act_missing_camera_raises() -> None:
 
 def test_act_missing_state_raises() -> None:
     predict, _ = _fake_predict(np.zeros((1, 6)))
-    pol = LeRobotPolicy(predict_fn=predict)
+    pol = LeRobotPolicy(_policy_cfg(), predict_fn=predict)
     pol.reset(Scene(id="s", instruction="x"))
     obs = Observation(images={"front": np.zeros((4, 4, 3), np.uint8)}, state={})
     with pytest.raises(ValueError, match="missing state key"):
@@ -134,9 +144,21 @@ def test_act_missing_state_raises() -> None:
 
 
 def test_config_object_overrides_flat() -> None:
-    pol = LeRobotPolicy(LeRobotPolicyConfig(chunk_size=3))
+    pol = LeRobotPolicy(_policy_cfg(chunk_size=3))
     assert pol.config.action_horizon == 3
     assert packing.TOTAL_DIM == 6  # sanity
+
+
+@pytest.mark.parametrize("shape", [(2, 4, 3), (4, 4, 1)])
+def test_act_rejects_wrong_camera_shape(shape: tuple[int, ...]) -> None:
+    predict, _ = _fake_predict(np.zeros((1, 6)))
+    pol = LeRobotPolicy(_policy_cfg(), predict_fn=predict)
+    pol.reset(Scene(id="s", instruction="x"))
+
+    expected = (4, 4, 3)
+    with pytest.raises(ValueError) as exc:
+        pol.act(_obs(image_shape=shape))
+    assert str(exc.value) == f"camera 'front' returned shape {shape}, expected {expected}"
 
 
 # ---------------------------------------------------------------------------
@@ -311,7 +333,7 @@ def _install_lerobot_fakes(
 
 
 def _seam_cfg(**over: Any) -> LeRobotPolicyConfig:
-    return LeRobotPolicyConfig(device="cpu", cam_height=4, cam_width=4, **over)
+    return _policy_cfg(device="cpu", **over)
 
 
 def test_default_predict_wires_lerobot(monkeypatch: pytest.MonkeyPatch) -> None:
