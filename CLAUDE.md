@@ -44,8 +44,8 @@ the configured cameras, packed `joint_pos` state). That makes
 
 - Dev loop: `uv venv && uv pip install -e ".[dev]"`, `uv run pre-commit install`,
   then `uv run pytest --cov`.
-- **Local install gotcha:** `uv pip install -e ".[dev]"` resolves `inspect-robots` from a
-  git tag. To work against a sibling checkout instead:
+- **Local install gotcha:** `uv pip install -e ".[dev]"` resolves `inspect-robots` from
+  PyPI. To work against a sibling checkout instead:
   `uv pip install -e ../inspect-robots` (then `uv pip install -e . --no-deps`).
 - Gates (all blocking in CI): `ruff check .`, `ruff format --check .`,
   `mypy` (strict), `pytest --cov` at **100%**.

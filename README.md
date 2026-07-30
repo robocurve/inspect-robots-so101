@@ -44,7 +44,7 @@ inspect-robots run --task cubepick-reach --policy lerobot --embodiment so_arm
 ## Install (on the robot/GPU machine)
 
 ```bash
-# Inspect Robots isn't on PyPI yet; uv resolves it from git. The `lerobot` extra pulls
+# Inspect Robots resolves from PyPI. The `lerobot` extra pulls
 # torch + lerobot + the Feetech motor bus the SO follower uses.
 uv pip install "inspect-robots-so101[lerobot] @ git+https://github.com/robocurve/inspect-robots-so101"
 ```
@@ -176,7 +176,7 @@ Every public module, class, and function needs a docstring, enforced by Ruff D1;
 state the contract, do not restate the name.
 
 ```bash
-uv venv && uv pip install -e ".[dev]"     # inspect-robots from a git tag
+uv venv && uv pip install -e ".[dev]"     # inspect-robots from PyPI
 uv run pre-commit install
 uv run pytest --cov                        # 100% coverage required
 uv run ruff check . && uv run mypy
