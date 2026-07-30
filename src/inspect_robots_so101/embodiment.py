@@ -76,7 +76,12 @@ class SOArmDriver(Protocol):
         ...
 
     def send_action(self, action: Mapping[str, float]) -> Mapping[str, Any]:
-        """Command motor positions keyed by LeRobot's ``"<motor>.pos"`` convention."""
+        """Command motor positions keyed by LeRobot's ``"<motor>.pos"`` convention.
+
+        Must echo the accepted action back with every motor key (LeRobot returns
+        the possibly slew-truncated goal); ``_send`` parses the echo as the
+        settle target, so a partial mapping raises ``KeyError``.
+        """
         ...
 
     def disconnect(self) -> None:
