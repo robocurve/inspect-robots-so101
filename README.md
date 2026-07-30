@@ -26,7 +26,7 @@ arm:
 - **`lerobot` policy**: wraps a LeRobot checkpoint (ACT, SmolVLA, π0, diffusion…)
   and runs it in process on the GPU, returning an action chunk per inference.
 - **`so_arm` embodiment**: the LeRobot SO follower driver (Feetech bus), with a
-  hard safety clamp, operator-in-the-loop success, and self-paced control.
+  hard safety clamp, operator-in-the-loop episode end, and self-paced control.
 
 Both declare the same 6-D joint-position contract (`shoulder_pan`,
 `shoulder_lift`, `elbow_flex`, `wrist_flex`, `wrist_roll`, `gripper`; the cameras
@@ -34,7 +34,7 @@ you configure; packed `joint_pos` state), so Inspect Robots's compatibility chec
 with zero errors and zero warnings, verifiable before any motion.
 
 ```bash
-inspect-robots run --task cubepick-reach --policy lerobot --embodiment so_arm
+inspect-robots run --instruction "Reach for the cube" --policy lerobot --embodiment so_arm
 ```
 
 > This is the SO-ARM/LeRobot sibling of
@@ -91,11 +91,21 @@ You must point the embodiment at your serial port, calibration id, and camera
 config, and the policy at a checkpoint:
 
 ```python
-from inspect_robots import eval
+from inspect_robots import Scene, Task, eval, operator_scorer
 from inspect_robots.approver import ClampApprover
 from inspect_robots_so101 import LeRobotPolicy, SOArmEmbodiment, SOArmConfig, LeRobotPolicyConfig
 from lerobot.cameras.opencv import OpenCVCameraConfig  # your camera backend
 
+def grade_trial(record, _scene):
+    record.operator_judgement = input("Outcome? [y/n/partial/skip]: ")
+    record.operator_note = input("Grader note (optional): ")
+
+task = Task(
+    name="operator-graded-reach",
+    scenes=[Scene(id="reach", instruction="Reach for the cube")],
+    scorer=operator_scorer(),
+    max_steps=1200,
+)
 emb = SOArmEmbodiment(SOArmConfig(
     port="/dev/ttyACM0",
     robot_type="so101_follower",
@@ -109,16 +119,40 @@ pol = LeRobotPolicy(LeRobotPolicyConfig(
 ))
 
 with emb:  # guarantees disconnect (and torque-off) even if the eval raises
-    (log,) = eval("cubepick-reach", pol, emb,
-                  approver=ClampApprover(emb.info.action_space))  # defense in depth
+    (log,) = eval(task, pol, emb,
+                  approver=ClampApprover(emb.info.action_space),
+                  before_scoring=grade_trial)  # records the verdict before scoring
 print(log.status, log.results.metrics)
 ```
 
 (Equivalently, wrap the `eval(...)` in `try: ... finally: emb.close()`.)
 
-At each episode end the embodiment asks the operator (y/N); a `yes` records
-`termination_reason="success"`, which the task's `success_at_end` scorer reads.
-Unattended runs simply run to `max_steps` and score as failures.
+Pressing the end-episode key terminates with
+`termination_reason="operator_end"`. The embodiment itself asks no grading
+questions. On attended CLI runs, the framework then asks once per trial for a
+`[y/n/partial/skip]` verdict and an optional grader note.
+
+Prompting and scoring are separate. Adhoc `--instruction` runs, such as the CLI
+example above, default to the `operator` scorer and score the recorded verdict.
+Registered tasks bring their own scorers, and the CLI rejects `--scorer` for
+them. The built-in `cubepick-reach` task uses `success_at_end`, which never
+reads operator judgements. An attended `--task cubepick-reach` run therefore
+collects a verdict but scores 0.0.
+
+Direct Python `eval()` calls never show the framework's CLI prompt. The example
+uses both pieces required for operator grading: `before_scoring` records the
+verdict, and the inline task's `operator_scorer()` reads it. A hook alone does
+not change a task's scorer, while `operator_scorer()` alone has no judgement to
+read.
+
+> [!WARNING]
+> Do not pair `success_at_end` with attended operator-graded runs. It counts only
+> embodiment-detected `"success"` terminations, so it scores `operator_end` as a
+> failure.
+
+The readiness prompt needs an interactive terminal. A closed or dead stdin
+raises `EmbodimentFault` with instructions to use a real TTY or inject
+`OperatorIO(input_fn=...)`; an open but silent pipe can still block.
 
 ## Safety
 

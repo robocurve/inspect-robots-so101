@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from inspect_robots.embodiment import SELF_PACED
 from inspect_robots.scene import Scene
-from inspect_robots.types import Action
+from inspect_robots.types import OPERATOR_END, Action
 
 from inspect_robots_so101 import packing
 from inspect_robots_so101.config import SOArmConfig
@@ -40,9 +40,13 @@ class FakeDriver:
         self.disconnected = True
 
 
-def _operator(answers: list[str] | None = None) -> OperatorIO:
-    seq = list(answers or [""])
-    return OperatorIO(input_fn=lambda _p: seq.pop(0), output_fn=lambda _m: None)
+def _operator(*, prompts: list[str] | None = None) -> OperatorIO:
+    def _input(prompt: str) -> str:
+        if prompts is not None:
+            prompts.append(prompt)
+        return ""
+
+    return OperatorIO(input_fn=_input, output_fn=lambda _m: None)
 
 
 def _build(
@@ -170,7 +174,7 @@ def test_reset_twice_reuses_driver() -> None:
     emb = SOArmEmbodiment(
         SOArmConfig(),
         driver_factory=_factory,
-        operator=_operator(["", ""]),
+        operator=_operator(),
         poll_end=lambda: False,
         sleep_fn=lambda _d: None,
         clock=lambda: 0.0,
@@ -180,21 +184,15 @@ def test_reset_twice_reuses_driver() -> None:
     assert calls["n"] == 1  # driver built once, reused on the second reset
 
 
-def test_step_terminates_success_on_operator_yes() -> None:
-    emb, _, _ = _build(poll_end_seq=[True], operator=_operator(["", "y"]))
+def test_step_terminates_operator_end_without_grading_prompt() -> None:
+    prompts: list[str] = []
+    emb, _, _ = _build(poll_end_seq=[True], operator=_operator(prompts=prompts))
     emb.reset(Scene(id="s", instruction="x"))
     result = emb.step(Action(data=np.zeros(6)))
     assert result.terminated is True
-    assert result.termination_reason == "success"
-    assert result.info["operator_confirmed"] is True
-
-
-def test_step_terminates_failure_on_operator_no() -> None:
-    emb, _, _ = _build(poll_end_seq=[True], operator=_operator(["", "n"]))
-    emb.reset(Scene(id="s", instruction="x"))
-    result = emb.step(Action(data=np.zeros(6)))
-    assert result.terminated is True
-    assert result.termination_reason == "failure"
+    assert result.termination_reason == OPERATOR_END
+    assert result.info == {}
+    assert prompts == ["Position the scene, then press Enter to start..."]
 
 
 def test_step_continues_when_no_end_signal() -> None:

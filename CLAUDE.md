@@ -37,8 +37,8 @@ the configured cameras, packed `joint_pos` state). That makes
 - `src/inspect_robots_so101/` — the package (see `src/inspect_robots_so101/CLAUDE.md`).
 - `tests/` — pytest; everything (driver, cameras, model inference, clock, operator
   stdin) is injected, so the suite needs **no hardware, no GPU, no torch, no
-  lerobot, no stdin**. The end-to-end test uses Inspect Robots's built-in
-  `cubepick-reach` task so it stays self-contained.
+  lerobot, no stdin**. The end-to-end test builds an inline `Task` with
+  `operator_scorer()` so it stays self-contained.
 
 ## Working here
 
@@ -70,8 +70,11 @@ the configured cameras, packed `joint_pos` state). That makes
 - The declared `control_mode` is `joint_pos` (absolute). Delta checkpoints are
   converted to absolute *inside* `step()` (`joints_are_delta=True`) so the declared
   semantics stay honest. Compat cannot verify abs-vs-delta — that's a hardware check.
-- Success reaches the scorer **only** via `StepResult.termination_reason="success"`
-  (stock `rollout` never sets `operator_judgement`).
+- The end-episode keypress terminates with `termination_reason="operator_end"`;
+  the framework prompt then records `operator_judgement`, which is what
+  judgement-reading scorers such as `operator` score. `success_at_end` counts
+  only embodiment-detected `"success"` terminations, which this embodiment
+  never emits.
 
 ## Out of scope
 

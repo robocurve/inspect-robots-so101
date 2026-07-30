@@ -7,10 +7,11 @@ reality:
   inside :meth:`step`, *independently* of any Inspect Robots ``Approver`` (so unclamped
   model outputs can never reach the motors). This is layered on top of LeRobot's
   own ``max_relative_target`` slew limit, which the driver applies.
-* **Operator-in-the-loop success** — there is no privileged oracle; when the
-  operator signals end-of-episode the embodiment returns
-  ``StepResult(terminated=True, termination_reason="success"|"failure")``, which is
-  the only path that reaches the scorer.
+* **Operator-in-the-loop episode end** — there is no privileged success oracle;
+  the operator's end-of-episode keypress returns
+  ``StepResult(terminated=True, termination_reason="operator_end")`` and the
+  human verdict (with optional grader notes) is captured afterwards by the
+  framework's operator prompt and read by judgement-based scorers.
 * **Self-paced** — declares ``SELF_PACED`` and sleeps to the control rate inside
   :meth:`step` (the framework does not pace for us).
 * **No interactive calibration** — the default driver connects with
@@ -35,7 +36,7 @@ import numpy as np
 import numpy.typing as npt
 from inspect_robots.embodiment import SELF_PACED, EmbodimentInfo
 from inspect_robots.scene import Scene
-from inspect_robots.types import Action, Observation, StepResult
+from inspect_robots.types import OPERATOR_END, Action, Observation, StepResult
 
 from inspect_robots_so101 import packing
 from inspect_robots_so101.config import SOArmConfig, action_box, observation_space
@@ -185,12 +186,14 @@ class SOArmEmbodiment:
 
         obs = self._observe(self._instruction)
         if self._poll_end():
-            success = self._operator.confirm_success()
+            # The operator only signals that the episode is over. The verdict,
+            # partial/skip, and grader notes belong to the framework's single
+            # operator prompt, which a definitive reason here would suppress.
             return StepResult(
                 observation=obs,
                 terminated=True,
-                termination_reason="success" if success else "failure",
-                info={"operator_confirmed": success},
+                termination_reason=OPERATOR_END,
+                info={},
             )
         return StepResult(observation=obs, terminated=False)
 

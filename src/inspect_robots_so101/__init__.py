@@ -5,7 +5,8 @@ Registers two Inspect Robots components via entry points:
 * embodiment ``so_arm`` — :class:`~inspect_robots_so101.embodiment.SOArmEmbodiment`
 * policy ``lerobot`` — :class:`~inspect_robots_so101.policy.LeRobotPolicy`
 
-so ``inspect-robots run --task cubepick-reach --policy lerobot --embodiment so_arm``
+so ``inspect-robots run --instruction "Reach for the cube" --policy lerobot
+--embodiment so_arm``
 works once both packages are installed. Use
 :func:`~inspect_robots_so101.preflight.run_preflight` (or the ``inspect-robots-so101-preflight``
 CLI) to verify compatibility before any motion.
