@@ -98,14 +98,30 @@ def test_reset_returns_observation_and_homes() -> None:
 
 
 def test_reset_interpolates_homing_when_far() -> None:
-    cfg = SOArmConfig(home_pose=(5.0,) * 6, max_relative_target=2.0)
-    emb, drv, _ = _build(cfg)
+    """Each intermediate command differs from the previous by at most max_relative_target."""
+    # Mixed directions: joints 0-2 start below home, joint 3 is already at home,
+    # joints 4-5 start above home (negative direction).
+    home = (10.0, 10.0, 10.0, 5.0, 0.0, 0.0)
+    start = np.array([0.0, 0.0, 0.0, 5.0, 8.0, 8.0])
+    cfg = SOArmConfig(
+        home_pose=home,
+        max_relative_target=4.0,
+        joint_low=(-20.0,) * 6,
+        joint_high=(20.0,) * 6,
+    )
+    driver = FakeDriver(state=start)
+    emb, drv, _ = _build(cfg, driver=driver)
     emb.reset(Scene(id="s", instruction="reach"))
-    # Steps: 2.0, 4.0, 5.0
-    assert len(drv.commands) == 3
-    assert drv.commands[0][0] == pytest.approx(2.0)
-    assert drv.commands[1][0] == pytest.approx(4.0)
-    assert drv.commands[2][0] == pytest.approx(5.0)
+
+    commands = np.stack(drv.commands)  # shape (n_steps, 6)
+    # Every step must stay within max_relative_target of the prior step.
+    for i in range(1, len(commands)):
+        per_joint_delta = np.abs(commands[i] - commands[i - 1])
+        assert np.all(per_joint_delta <= 4.0 + 1e-9), (
+            f"step {i}: delta {per_joint_delta} exceeded max_relative_target"
+        )
+    # Final command must land exactly on home_pose.
+    assert commands[-1] == pytest.approx(list(home))
 
 
 def test_reset_homing_raises_on_non_finite_observation() -> None:
@@ -114,6 +130,82 @@ def test_reset_homing_raises_on_non_finite_observation() -> None:
     emb = SOArmEmbodiment(cfg, driver_factory=lambda _c: driver, operator=_operator())
     with pytest.raises(RuntimeError, match="non-finite values"):
         emb.reset(Scene(id="s", instruction="reach"))
+
+
+def test_reset_homing_raises_when_start_out_of_limits() -> None:
+    """_home() raises if the observed start pose is outside limits by more than step_limit."""
+    cfg = SOArmConfig(
+        home_pose=(5.0,) * 6,
+        max_relative_target=1.0,
+        joint_low=(0.0,) * 6,
+        joint_high=(10.0,) * 6,
+    )
+    # Start far above joint_high (150 >> 10 + 1.0).
+    driver = FakeDriver(state=np.full(6, 150.0))
+    emb = SOArmEmbodiment(cfg, driver_factory=lambda _c: driver, operator=_operator())
+    with pytest.raises(RuntimeError, match="outside joint limits"):
+        emb.reset(Scene(id="s", instruction="reach"))
+
+
+def test_homing_first_step_is_paced() -> None:
+    """The first homing step must be paced like every other step.
+
+    Regression test: before the fix, _t_last was 0.0 from __init__.  With a
+    real clock that had advanced (e.g. startup cost), elapsed >> period so
+    _pace() slept 0.0 for the very first step — doubling the intended slew rate.
+    After the fix, _t_last is reset to clock() immediately before the homing
+    loop, so elapsed ≈ 0 and sleep ≈ period for the first step.
+    """
+    control_hz = 30.0
+    period = 1.0 / control_hz
+
+    # Simulate a clock that has already advanced 100 s since __init__.
+    # We return T0=100.0 for the _t_last reset call inside _home(), then
+    # T0 + period for every subsequent call so that each _pace() pair sees
+    # elapsed = period and sleeps max(0, period - period) = 0.
+    # But the key regression: WITHOUT the _t_last reset, elapsed on the first
+    # _pace() would be (100 + period) - 0 >> period, yielding sleep = 0.
+    # WITH the fix, elapsed = (100 + period) - 100 = period, sleep = 0.
+    #
+    # To make the test directly observable, we use a strictly-increasing clock
+    # where consecutive calls differ by period/2 so each _pace() pair spans
+    # exactly period/2, and sleep = period - period/2 = period/2 > 0.
+    _t = [100.0]
+
+    def _clock() -> float:
+        t = _t[0]
+        _t[0] += period / 2
+        return t
+
+    cfg = SOArmConfig(
+        home_pose=(10.0,) * 6,
+        max_relative_target=2.0,
+        joint_low=(-20.0,) * 6,
+        joint_high=(20.0,) * 6,
+        control_hz=control_hz,
+    )
+    sleeps: list[float] = []
+    emb = SOArmEmbodiment(
+        cfg,
+        driver_factory=lambda _c: FakeDriver(),
+        operator=_operator(),
+        poll_end=lambda: False,
+        sleep_fn=sleeps.append,
+        clock=_clock,
+    )
+    emb.reset(Scene(id="s", instruction="reach"))
+
+    # Homing 0→10 in steps of 2 → 5 commands → 5 _pace() calls.
+    assert len(sleeps) >= 5, f"expected ≥5 sleeps, got {len(sleeps)}"
+    # With the _t_last reset before the loop, elapsed per pace = period/2,
+    # so sleep = period - period/2 = period/2 for every step including the first.
+    # Without the fix, sleep[0] = max(0, period - (100+period/2 - 0.0)) ≈ 0.
+    expected_sleep = period / 2
+    for i, s in enumerate(sleeps[:5]):
+        assert s == pytest.approx(expected_sleep, abs=1e-9), (
+            f"sleep[{i}] = {s:.9f}s; expected ~{expected_sleep:.9f}s — "
+            "first step must be paced (regression: was 0.0 before _t_last reset fix)"
+        )
 
 
 def test_observation_records_monotonic_capture_times() -> None:

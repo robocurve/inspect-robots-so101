@@ -227,13 +227,20 @@ class SOArmEmbodiment:
         return self._driver
 
     def _home(self) -> None:
-        """Drive to home_pose, interpolating in bounded steps of max_relative_target."""
+        """Drive to home_pose, interpolating in bounded steps of max_relative_target.
+
+        Open-loop design: the trajectory is computed from a single initial
+        observation and advanced in closed-form, so a physically stalled joint
+        still terminates. If the arm stalls and then frees mid-homing, the
+        driver-level max_relative_target (wired in _default_driver_factory) bounds
+        the chase relative to actual position — do not remove that wiring.
+        """
         if self._cfg.home_pose is None:
             return
         target = np.asarray(self._cfg.home_pose, dtype=np.float64)
         step_limit = self._cfg.max_relative_target
-        # SOArmConfig enforces max_relative_target when home_pose is set
-        assert step_limit is not None
+        if step_limit is None:  # SOArmConfig enforces this when home_pose is set
+            raise RuntimeError("home_pose is set but max_relative_target is None")
 
         raw = self._require_driver().get_observation()
         current = packing.from_obs_dict(raw)
@@ -241,6 +248,17 @@ class SOArmEmbodiment:
             raise RuntimeError(
                 f"cannot home: initial motor observation contains non-finite values: {current}"
             )
+        if np.any(current < self._cfg.low - step_limit) or np.any(
+            current > self._cfg.high + step_limit
+        ):
+            raise RuntimeError(
+                f"cannot home: observed start pose {current} is outside joint limits "
+                f"[{self._cfg.low}, {self._cfg.high}] by more than max_relative_target "
+                f"({step_limit}); check calibration"
+            )
+
+        # Reset the pace clock so the very first homing step is paced like the rest.
+        self._t_last = self._clock()
 
         max_dist = float(np.max(np.abs(target - current)))
         if max_dist <= step_limit:

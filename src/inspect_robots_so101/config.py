@@ -106,6 +106,14 @@ class SOArmConfig(_FromKwargs):
                 raise ValueError(f"home_pose must have {TOTAL_DIM} entries")
             if not all(math.isfinite(v) for v in self.home_pose):
                 raise ValueError(f"home_pose must contain finite numbers, got {self.home_pose}")
+            low = np.asarray(self.joint_low, dtype=np.float64)
+            high = np.asarray(self.joint_high, dtype=np.float64)
+            hp = np.asarray(self.home_pose, dtype=np.float64)
+            if np.any(hp < low) or np.any(hp > high):
+                raise ValueError(
+                    f"home_pose {self.home_pose} is outside [joint_low, joint_high]; "
+                    "the arm cannot reach an out-of-range target"
+                )
         if self.max_relative_target is not None and (
             not math.isfinite(self.max_relative_target) or self.max_relative_target <= 0
         ):
