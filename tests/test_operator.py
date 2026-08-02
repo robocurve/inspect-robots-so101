@@ -1,6 +1,9 @@
-"""Tests for operator-in-the-loop confirmation."""
+"""Tests for operator readiness and end-of-episode signaling."""
 
 from __future__ import annotations
+
+import pytest
+from inspect_robots.errors import EmbodimentFault
 
 from inspect_robots_so101.operator import OperatorIO, default_poll_end
 
@@ -22,18 +25,31 @@ def test_wait_ready_calls_input() -> None:
     assert seen == ["ready?"]
 
 
-def test_confirm_success_affirmative() -> None:
-    for ans in ("y", "Yes", "1", "TRUE", "success", "pass"):
-        inp, _ = _scripted([ans])
-        io = OperatorIO(input_fn=inp)
-        assert io.confirm_success() is True
+def test_wait_ready_drain_is_noop_without_tty() -> None:
+    inp, seen = _scripted([""])
+    io = OperatorIO(input_fn=inp, output_fn=lambda _m: None)
+    io.wait_ready()
+    assert len(seen) == 1
 
 
-def test_confirm_success_negative() -> None:
-    for ans in ("n", "no", "", "nope"):
-        inp, _ = _scripted([ans])
-        io = OperatorIO(input_fn=inp)
-        assert io.confirm_success() is False
+def test_wait_ready_eof_raises_embodiment_fault() -> None:
+    def _dead_stdin(_prompt: str) -> str:
+        raise EOFError("stdin closed")
+
+    io = OperatorIO(input_fn=_dead_stdin, output_fn=lambda _m: None)
+    with pytest.raises(EmbodimentFault, match="real TTY") as exc:
+        io.wait_ready()
+    assert "OperatorIO(input_fn=...)" in str(exc.value)
+
+
+def test_wait_ready_oserror_raises_embodiment_fault() -> None:
+    def _dead_stdin(_prompt: str) -> str:
+        raise OSError("stdin closed")
+
+    io = OperatorIO(input_fn=_dead_stdin, output_fn=lambda _m: None)
+    with pytest.raises(EmbodimentFault, match="real TTY") as exc:
+        io.wait_ready()
+    assert "OperatorIO(input_fn=...)" in str(exc.value)
 
 
 def test_default_poll_end_is_callable() -> None:

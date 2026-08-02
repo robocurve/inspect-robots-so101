@@ -86,6 +86,12 @@ class SOArmConfig(_FromKwargs):
     use_degrees: bool = True
     max_relative_target: float | None = None
     disable_torque_on_disconnect: bool = True
+    # Wait for the arm joints to reach each accepted command before observing,
+    # so a chunked policy plans from a converged pose. None disables the wait.
+    settle_tolerance: float | None = None
+    settle_timeout_s: float = 1.0
+    # Timeouts per trial before settling gives up for the rest of that trial.
+    settle_timeout_budget: int = 20
     # LeRobot CameraConfig objects keyed by camera name, used only by the default
     # (hardware) driver factory. Opaque to this package; not CLI-settable. Their
     # keys should match ``cameras``. ``None`` means "build the robot with no
@@ -130,6 +136,18 @@ class SOArmConfig(_FromKwargs):
                 "jump to the home pose; set SOArmConfig.max_relative_target (native "
                 "motor units per step) to slew-limit it, or unset home_pose"
             )
+        if self.settle_tolerance is not None and (
+            not np.isfinite(self.settle_tolerance) or self.settle_tolerance <= 0
+        ):
+            raise ValueError("settle_tolerance must be finite and > 0")
+        if not np.isfinite(self.settle_timeout_s) or self.settle_timeout_s <= 0:
+            raise ValueError("settle_timeout_s must be finite and > 0")
+        if (
+            not isinstance(self.settle_timeout_budget, int)
+            or isinstance(self.settle_timeout_budget, bool)
+            or self.settle_timeout_budget < 1
+        ):
+            raise ValueError("settle_timeout_budget must be a positive integer")
 
     @property
     def low(self) -> npt.NDArray[np.float64]:

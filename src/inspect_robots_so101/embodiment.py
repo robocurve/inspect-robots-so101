@@ -7,12 +7,14 @@ reality:
   inside :meth:`step`, *independently* of any Inspect Robots ``Approver`` (so unclamped
   model outputs can never reach the motors). This is layered on top of LeRobot's
   own ``max_relative_target`` slew limit, which the driver applies.
-* **Operator-in-the-loop success** — there is no privileged oracle; when the
-  operator signals end-of-episode the embodiment returns
-  ``StepResult(terminated=True, termination_reason="success"|"failure")``, which is
-  the only path that reaches the scorer.
+* **Operator-in-the-loop episode end** — there is no privileged success oracle;
+  the operator's end-of-episode keypress returns
+  ``StepResult(terminated=True, termination_reason="operator_end")`` and the
+  human verdict (with optional grader notes) is captured afterwards by the
+  framework's operator prompt and read by judgement-based scorers.
 * **Self-paced** — declares ``SELF_PACED`` and sleeps to the control rate inside
-  :meth:`step` (the framework does not pace for us).
+  :meth:`step` (the framework does not pace for us). With ``settle_tolerance``
+  set, ``control_hz`` is a floor on step duration rather than a fixed rate.
 * **No interactive calibration** — the default driver connects with
   ``calibrate=False`` and fails fast (:func:`_check_calibrated`) when the arm
   isn't calibrated for ``SOArmConfig.robot_id``, instead of dropping into
@@ -27,6 +29,8 @@ built in a pragma'd default that only executes on hardware.
 
 from __future__ import annotations
 
+import logging
+import math
 import time
 from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
@@ -35,7 +39,7 @@ import numpy as np
 import numpy.typing as npt
 from inspect_robots.embodiment import SELF_PACED, EmbodimentInfo
 from inspect_robots.scene import Scene
-from inspect_robots.types import Action, Observation, StepResult
+from inspect_robots.types import OPERATOR_END, Action, Observation, StepResult
 
 from inspect_robots_so101 import packing
 from inspect_robots_so101.config import SOArmConfig, action_box, observation_space
@@ -46,6 +50,16 @@ if TYPE_CHECKING:
 
 ImageMap = Mapping[str, npt.NDArray[np.uint8]]
 Vec = npt.NDArray[np.float64]
+
+logger = logging.getLogger(__name__)
+
+#: Spacing between settle polls. The driver observation read can make the loop
+#: read-bound on hardware, so this is a floor rather than a guaranteed rate.
+_SETTLE_POLL_S = 0.01
+
+#: Revolute-joint slots settling checks. The gripper is excluded because one
+#: closing on an object may never reach its target.
+_ARM_SLOTS = np.arange(packing.NUM_JOINTS, dtype=np.intp)
 
 
 @runtime_checkable
@@ -62,7 +76,12 @@ class SOArmDriver(Protocol):
         ...
 
     def send_action(self, action: Mapping[str, float]) -> Mapping[str, Any]:
-        """Command motor positions keyed by LeRobot's ``"<motor>.pos"`` convention."""
+        """Command motor positions keyed by LeRobot's ``"<motor>.pos"`` convention.
+
+        Must echo the accepted action back with every motor key (LeRobot returns
+        the possibly slew-truncated goal); ``_send`` parses the echo as the
+        settle target, so a partial mapping raises ``KeyError``.
+        """
         ...
 
     def disconnect(self) -> None:
@@ -141,6 +160,9 @@ class SOArmEmbodiment:
         self._last_state: Vec | None = None
         self._t_last = 0.0
         self.num_steps = 0
+        self.settle_timeouts = 0
+        # Set when the per-trial timeout budget is exhausted. Cleared at reset.
+        self._settle_disabled = False
 
         self.info = EmbodimentInfo(
             name="so_arm",
@@ -160,10 +182,16 @@ class SOArmEmbodiment:
 
     def reset(self, scene: Scene, *, seed: int | None = None) -> Observation:
         """Connect (if needed), drive to home, and block on operator readiness."""
+        # Clear at entry because the home command settles below. Clearing near
+        # num_steps would let one exhausted trial suppress the next reset settle.
+        self.settle_timeouts = 0
+        self._settle_disabled = False
         self._last_state = None
         if self._driver is None:
             self._driver = self._driver_factory(self._cfg)
         self._home()
+        if self._cfg.home_pose is not None:
+            self._settle(np.asarray(self._cfg.home_pose, dtype=np.float64))
         self._operator.wait_ready()
         self._instruction = scene.instruction
         self.num_steps = 0
@@ -179,19 +207,23 @@ class SOArmEmbodiment:
             if self._last_state is None:  # pragma: no cover - reset() always observes first
                 raise RuntimeError("step() called before reset()")
             cmd = self._last_state + cmd
-        self._send(cmd)
+        target = self._send(cmd)
+        # Before _pace(), so settle time is absorbed by the control period.
+        settle_info = self._settle_info(self._settle(target))
         self._pace()
 
         obs = self._observe(self._instruction)
         if self._poll_end():
-            success = self._operator.confirm_success()
+            # The operator only signals that the episode is over. The verdict,
+            # partial/skip, and grader notes belong to the framework's single
+            # operator prompt, which a definitive reason here would suppress.
             return StepResult(
                 observation=obs,
                 terminated=True,
-                termination_reason="success" if success else "failure",
-                info={"operator_confirmed": success},
+                termination_reason=OPERATOR_END,
+                info=settle_info,
             )
-        return StepResult(observation=obs, terminated=False)
+        return StepResult(observation=obs, terminated=False, info=settle_info)
 
     def close(self) -> None:
         """Disconnect and release the driver (no-op if never connected).
@@ -276,10 +308,68 @@ class SOArmEmbodiment:
         self._send(target)
         self._pace()
 
-    def _send(self, cmd: Vec) -> None:
-        """Clamp to joint limits (safety backstop) and command the motors."""
+    def _send(self, cmd: Vec) -> Vec:
+        """Clamp, command the motors, and return the action the driver accepted."""
         clamped = np.clip(cmd, self._cfg.low, self._cfg.high)
-        self._require_driver().send_action(packing.to_action_dict(clamped))
+        accepted = self._require_driver().send_action(packing.to_action_dict(clamped))
+        return packing.from_obs_dict(accepted)
+
+    def _settle(self, target: Vec) -> tuple[bool, float] | None:
+        """Wait for arm joints to reach ``target`` and report status plus residual.
+
+        ``None`` means settling is unconfigured or disabled for this trial.
+        Reads precede sleeps so an already-converged command adds no delay.
+        """
+        tolerance = self._cfg.settle_tolerance
+        if tolerance is None or self._settle_disabled:
+            return None
+        driver = self._require_driver()
+        wanted = target[_ARM_SLOTS]
+        started = self._clock()
+        # The poll cap prevents a frozen or non-monotonic injected clock from
+        # wedging a step. A positive timeout guarantees at least one poll.
+        max_polls = math.ceil(self._cfg.settle_timeout_s / _SETTLE_POLL_S)
+        polls = 0
+        while True:
+            current = packing.from_obs_dict(driver.get_observation())[_ARM_SLOTS]
+            error = np.abs(current - wanted)
+            residual = float(np.max(error))
+            if residual <= tolerance:
+                return True, residual
+            polls += 1
+            if polls >= max_polls:
+                break
+            if self._clock() - started >= self._cfg.settle_timeout_s:
+                break
+            self._sleep(_SETTLE_POLL_S)
+        self.settle_timeouts += 1
+        if self.settle_timeouts >= self._cfg.settle_timeout_budget:
+            self._settle_disabled = True
+            joint = int(_ARM_SLOTS[int(np.argmax(error))])
+            unit = "degrees" if self._cfg.use_degrees else "normalized"
+            # logging, not warnings.warn: identical residuals across trials must
+            # still emit a notice instead of being deduplicated by the warnings
+            # registry.
+            logger.warning(
+                "settle timeout budget exhausted; observations for the rest of "
+                "this trial may precede the commanded pose (worst motor=%s, "
+                "residual=%.4f %s)",
+                packing.MOTORS[joint],
+                residual,
+                unit,
+            )
+        return False, residual
+
+    def _settle_info(self, settled: tuple[bool, float] | None) -> dict[str, Any]:
+        """Report per-step settle state, or an empty mapping when unconfigured."""
+        if self._cfg.settle_tolerance is None:
+            return {}
+        info: dict[str, Any] = {"settle_timeouts": self.settle_timeouts}
+        if settled is not None:
+            info["settled"], info["settle_residual"] = settled
+        if self._settle_disabled:
+            info["settle_disabled"] = True
+        return info
 
     def _pace(self) -> None:
         hz = self._cfg.control_hz
@@ -294,6 +384,10 @@ class SOArmEmbodiment:
         state = packing.from_obs_dict(raw)
         self._last_state = state
         images = {cam: np.asarray(raw[cam], dtype=np.uint8) for cam in self._cfg.cameras}
+        expected = (self._cfg.cam_height, self._cfg.cam_width, 3)
+        for name, img in images.items():
+            if img.shape != expected:
+                raise ValueError(f"camera {name!r} returned shape {img.shape}, expected {expected}")
         return Observation(
             images=images,
             state={packing.STATE_KEY: state},

@@ -2,68 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import numpy as np
 import pytest
 from inspect_robots.embodiment import SELF_PACED
 from inspect_robots.scene import Scene
-from inspect_robots.types import Action
+from inspect_robots.types import OPERATOR_END, Action
 
-from inspect_robots_so101 import packing
+from conftest import FakeDriver, _build, _operator
 from inspect_robots_so101.config import SOArmConfig
 from inspect_robots_so101.embodiment import SOArmEmbodiment, _check_calibrated
-from inspect_robots_so101.operator import OperatorIO
-
-
-class FakeDriver:
-    """Stand-in for a LeRobot SO follower: dict obs of '<motor>.pos' + cameras."""
-
-    def __init__(self, state: np.ndarray | None = None) -> None:
-        self.state = np.zeros(6) if state is None else np.asarray(state, dtype=float)
-        self.commands: list[np.ndarray] = []
-        self.observation_reads = 0
-        self.disconnected = False
-
-    def get_observation(self) -> dict[str, Any]:
-        self.observation_reads += 1
-        obs: dict[str, Any] = packing.to_action_dict(self.state)
-        obs["front"] = np.zeros((4, 4, 3), dtype=np.uint8)
-        return obs
-
-    def send_action(self, action: dict[str, float]) -> dict[str, float]:
-        self.state = packing.from_obs_dict(action)
-        self.commands.append(self.state)
-        return action
-
-    def disconnect(self) -> None:
-        self.disconnected = True
-
-
-def _operator(answers: list[str] | None = None) -> OperatorIO:
-    seq = list(answers or [""])
-    return OperatorIO(input_fn=lambda _p: seq.pop(0), output_fn=lambda _m: None)
-
-
-def _build(
-    cfg: SOArmConfig | None = None,
-    *,
-    driver: FakeDriver | None = None,
-    poll_end_seq: list[bool] | None = None,
-    operator: OperatorIO | None = None,
-):
-    drv = driver or FakeDriver()
-    polls = list(poll_end_seq or [False])
-    sleeps: list[float] = []
-    emb = SOArmEmbodiment(
-        cfg or SOArmConfig(),
-        driver_factory=lambda _c: drv,
-        operator=operator or _operator(),
-        poll_end=lambda: polls.pop(0) if polls else False,
-        sleep_fn=sleeps.append,
-        clock=lambda: 0.0,
-    )
-    return emb, drv, sleeps
 
 
 def test_zero_arg_info_no_hardware() -> None:
@@ -183,6 +130,8 @@ def test_homing_first_step_is_paced() -> None:
         joint_low=(-20.0,) * 6,
         joint_high=(20.0,) * 6,
         control_hz=control_hz,
+        cam_height=4,
+        cam_width=4,
     )
     sleeps: list[float] = []
     emb = SOArmEmbodiment(
@@ -211,7 +160,7 @@ def test_homing_first_step_is_paced() -> None:
 def test_observation_records_monotonic_capture_times() -> None:
     times = iter([10.0, 10.25])
     emb = SOArmEmbodiment(
-        SOArmConfig(),
+        SOArmConfig(cam_height=4, cam_width=4),
         driver_factory=lambda _c: FakeDriver(),
         operator=_operator(),
         poll_end=lambda: False,
@@ -279,9 +228,9 @@ def test_reset_twice_reuses_driver() -> None:
         return FakeDriver()
 
     emb = SOArmEmbodiment(
-        SOArmConfig(),
+        SOArmConfig(cam_height=4, cam_width=4),
         driver_factory=_factory,
-        operator=_operator(["", ""]),
+        operator=_operator(),
         poll_end=lambda: False,
         sleep_fn=lambda _d: None,
         clock=lambda: 0.0,
@@ -291,21 +240,15 @@ def test_reset_twice_reuses_driver() -> None:
     assert calls["n"] == 1  # driver built once, reused on the second reset
 
 
-def test_step_terminates_success_on_operator_yes() -> None:
-    emb, _, _ = _build(poll_end_seq=[True], operator=_operator(["", "y"]))
+def test_step_terminates_operator_end_without_grading_prompt() -> None:
+    prompts: list[str] = []
+    emb, _, _ = _build(poll_end_seq=[True], operator=_operator(prompts=prompts))
     emb.reset(Scene(id="s", instruction="x"))
     result = emb.step(Action(data=np.zeros(6)))
     assert result.terminated is True
-    assert result.termination_reason == "success"
-    assert result.info["operator_confirmed"] is True
-
-
-def test_step_terminates_failure_on_operator_no() -> None:
-    emb, _, _ = _build(poll_end_seq=[True], operator=_operator(["", "n"]))
-    emb.reset(Scene(id="s", instruction="x"))
-    result = emb.step(Action(data=np.zeros(6)))
-    assert result.terminated is True
-    assert result.termination_reason == "failure"
+    assert result.termination_reason == OPERATOR_END
+    assert result.info == {}
+    assert prompts == ["Position the scene, then press Enter to start..."]
 
 
 def test_step_continues_when_no_end_signal() -> None:
@@ -367,6 +310,17 @@ def test_context_manager_closes_on_exception() -> None:
         emb.reset(Scene(id="s", instruction="x"))
         raise RuntimeError("boom")
     assert drv.disconnected is True
+
+
+@pytest.mark.parametrize("shape", [(2, 4, 3), (4, 4, 1)])
+def test_observe_rejects_wrong_camera_shape(shape: tuple[int, ...]) -> None:
+    driver = FakeDriver(frame_shape=shape)
+    emb, _, _ = _build(driver=driver)
+
+    expected = (4, 4, 3)
+    with pytest.raises(ValueError) as exc:
+        emb.reset(Scene(id="s", instruction="x"))
+    assert str(exc.value) == f"camera 'front' returned shape {shape}, expected {expected}"
 
 
 def test_check_calibrated_passes_when_calibrated() -> None:
