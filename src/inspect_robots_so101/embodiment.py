@@ -271,7 +271,7 @@ class SOArmEmbodiment:
             return
         target = np.asarray(self._cfg.home_pose, dtype=np.float64)
         step_limit = self._cfg.max_relative_target
-        if step_limit is None:  # SOArmConfig enforces this when home_pose is set
+        if step_limit is None:  # pragma: no cover - SOArmConfig enforces this when home_pose is set
             raise RuntimeError("home_pose is set but max_relative_target is None")
 
         raw = self._require_driver().get_observation()

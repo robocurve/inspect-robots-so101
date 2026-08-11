@@ -108,7 +108,7 @@ def test_soarm_rejects_bad_home_pose() -> None:
         SOArmConfig(home_pose=(float("nan"),) * 6)
     with pytest.raises(ValueError, match="outside \\[joint_low, joint_high\\]"):
         SOArmConfig(
-            home_pose=(500.0,) * 6,   # well outside default ±180° limits
+            home_pose=(500.0,) * 6,  # well outside default ±180° limits
             max_relative_target=5.0,
         )
 
