@@ -189,9 +189,9 @@ class SOArmEmbodiment:
         self._last_state = None
         if self._driver is None:
             self._driver = self._driver_factory(self._cfg)
+        self._home()
         if self._cfg.home_pose is not None:
-            target = self._send(np.asarray(self._cfg.home_pose, dtype=np.float64))
-            self._settle(target)
+            self._settle(np.asarray(self._cfg.home_pose, dtype=np.float64))
         self._operator.wait_ready()
         self._instruction = scene.instruction
         self.num_steps = 0
@@ -257,6 +257,56 @@ class SOArmEmbodiment:
         if self._driver is None:  # pragma: no cover - reset() always connects first
             raise RuntimeError("step() called before reset()")
         return self._driver
+
+    def _home(self) -> None:
+        """Drive to home_pose, interpolating in bounded steps of max_relative_target.
+
+        Open-loop design: the trajectory is computed from a single initial
+        observation and advanced in closed-form, so a physically stalled joint
+        still terminates. If the arm stalls and then frees mid-homing, the
+        driver-level max_relative_target (wired in _default_driver_factory) bounds
+        the chase relative to actual position — do not remove that wiring.
+        """
+        if self._cfg.home_pose is None:
+            return
+        target = np.asarray(self._cfg.home_pose, dtype=np.float64)
+        step_limit = self._cfg.max_relative_target
+        if step_limit is None:  # pragma: no cover - SOArmConfig enforces this when home_pose is set
+            raise RuntimeError("home_pose is set but max_relative_target is None")
+
+        raw = self._require_driver().get_observation()
+        current = packing.from_obs_dict(raw)
+        if not np.all(np.isfinite(current)):
+            raise RuntimeError(
+                f"cannot home: initial motor observation contains non-finite values: {current}"
+            )
+        if np.any(current < self._cfg.low - step_limit) or np.any(
+            current > self._cfg.high + step_limit
+        ):
+            raise RuntimeError(
+                f"cannot home: observed start pose {current} is outside joint limits "
+                f"[{self._cfg.low}, {self._cfg.high}] by more than max_relative_target "
+                f"({step_limit}); check calibration"
+            )
+
+        # Reset the pace clock so the very first homing step is paced like the rest.
+        self._t_last = self._clock()
+
+        max_dist = float(np.max(np.abs(target - current)))
+        if max_dist <= step_limit:
+            self._send(target)
+            self._pace()
+            return
+
+        n_steps = int(np.ceil(max_dist / step_limit))
+        for _ in range(n_steps - 1):
+            diff = target - current
+            step_delta = np.clip(diff, -step_limit, step_limit)
+            current = current + step_delta
+            self._send(current)
+            self._pace()
+        self._send(target)
+        self._pace()
 
     def _send(self, cmd: Vec) -> Vec:
         """Clamp, command the motors, and return the action the driver accepted."""

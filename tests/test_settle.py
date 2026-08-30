@@ -148,8 +148,11 @@ def test_reset_settles_before_readiness_and_first_observation() -> None:
 
     emb.reset(Scene(id="s", instruction="go"))
 
-    assert reads_at_ready == [2]
-    assert driver.observation_reads == 3
+    # _home() reads the current pose (1 read) before interpolating, then settle
+    # polls converge_after=2 times (2 reads). Total before wait_ready = 3.
+    # After wait_ready, _observe() adds 1 more read.
+    assert reads_at_ready == [3]
+    assert driver.observation_reads == 4
     assert sleeps == [POLL_S]
 
 
@@ -235,7 +238,9 @@ def test_budget_exhaustion_disables_trial_and_reset_rearms(
     driver.offset = np.zeros(6)
     reads_before = driver.observation_reads
     emb.reset(Scene(id="two", instruction="again"))
-    assert driver.observation_reads - reads_before == 2
+    # _home() reads current pose (1 read) + settle converges in 1 read = 2,
+    # plus _observe() at end of reset = 1. Total: 3 reads.
+    assert driver.observation_reads - reads_before == 3
     assert emb.settle_timeouts == 0
     assert emb._settle_disabled is False
 
