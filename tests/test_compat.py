@@ -4,10 +4,12 @@ a LeRobot policy — zero errors, zero warnings — and built-in tasks are reali
 from __future__ import annotations
 
 from inspect_robots.compat import check_compatibility
+from inspect_robots.conformance import assert_embodiment_conformant
 from inspect_robots.policy import PolicyConfig, PolicyInfo
 from inspect_robots.registry import resolve
 from inspect_robots.spaces import ActionSemantics, Box
 
+from inspect_robots_so101 import packing
 from inspect_robots_so101.config import (
     LeRobotPolicyConfig,
     SOArmConfig,
@@ -34,6 +36,13 @@ def test_normalized_lerobot_soarm_pair_declares_matching_contract() -> None:
     assert policy.info.observation_space.state == embodiment.info.observation_space.state
     assert policy.info.observation_space.state is not None
     assert policy.info.observation_space.state.fields[0].unit == "normalized"
+
+
+def test_soarm_embodiment_is_conformant_with_labeled_action_dims() -> None:
+    embodiment = SOArmEmbodiment()
+    assert_embodiment_conformant(embodiment.info)
+    assert embodiment.info.action_space.semantics is not None
+    assert embodiment.info.action_space.semantics.dim_labels == packing.MOTORS
 
 
 def test_builtin_task_is_realizable() -> None:

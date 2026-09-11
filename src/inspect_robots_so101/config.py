@@ -194,6 +194,7 @@ ACTION_SEMANTICS = ActionSemantics(
     rotation_repr="none",
     gripper="continuous",
     frame="base",
+    dim_labels=packing.MOTORS,
 )
 
 
