@@ -39,7 +39,7 @@ _NORMALIZED_HIGH: tuple[float, ...] = (100.0,) * NUM_JOINTS + (100.0,)
 
 DEFAULT_CAMERAS: tuple[str, ...] = ("front",)
 
-# The SO follower variants lerobot ships. At lerobot v0.5.x both names alias the
+# The SO follower variants lerobot ships. At lerobot v0.5 through v0.6 both names alias the
 # SAME driver + config classes (SO100Follower = SO101Follower = SOFollower), so
 # `robot_type` is a documented, validated label — it does not change runtime
 # behavior. It exists so configs stay self-describing and so a future lerobot
