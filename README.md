@@ -202,7 +202,7 @@ raises `EmbodimentFault` with instructions to use a real TTY or inject
 `settle_tolerance` (default `None`), `settle_timeout_s` (default `1.0`),
 `settle_timeout_budget` (default `20`).
 `robot_type` is validated (`so101_follower` / `so100_follower`) but is a label:
-at lerobot v0.5.x both names alias the same driver class, so it changes no
+at lerobot v0.5–0.6 both names alias the same driver class, so it changes no
 runtime behavior.
 `LeRobotPolicyConfig`: `pretrained_path`, `policy_type`, `device`, `cameras`,
 `state_key`, `chunk_size`, `cam_height/width`, `use_degrees`. Set its
