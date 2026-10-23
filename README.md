@@ -97,9 +97,11 @@ from inspect_robots.approver import ClampApprover
 from inspect_robots_so101 import LeRobotPolicy, SOArmEmbodiment, SOArmConfig, LeRobotPolicyConfig
 from lerobot.cameras.opencv import OpenCVCameraConfig  # your camera backend
 
+
 def grade_trial(record, _scene):
     record.operator_judgement = input("Outcome? [y/n/partial/skip]: ")
     record.operator_note = input("Grader note (optional): ")
+
 
 task = Task(
     name="operator-graded-reach",
@@ -107,22 +109,30 @@ task = Task(
     scorer=operator_scorer(),
     max_steps=1200,
 )
-emb = SOArmEmbodiment(SOArmConfig(
-    port="/dev/ttyACM0",
-    robot_type="so101_follower",
-    robot_id="my_follower",    # the id you ran `lerobot-calibrate` with
-    max_relative_target=10.0,  # native-unit slew limit; required for home_pose
-    cameras=("front",),
-    camera_configs={"front": OpenCVCameraConfig(index_or_path=0, width=640, height=480, fps=30)},
-))
-pol = LeRobotPolicy(LeRobotPolicyConfig(
-    pretrained_path="lerobot/smolvla_base", policy_type="smolvla", device="cuda",
-))
+emb = SOArmEmbodiment(
+    SOArmConfig(
+        port="/dev/ttyACM0",
+        robot_type="so101_follower",
+        robot_id="my_follower",  # the id you ran `lerobot-calibrate` with
+        max_relative_target=10.0,  # native-unit slew limit; required for home_pose
+        cameras=("front",),
+        camera_configs={
+            "front": OpenCVCameraConfig(index_or_path=0, width=640, height=480, fps=30)
+        },
+    )
+)
+pol = LeRobotPolicy(
+    LeRobotPolicyConfig(
+        pretrained_path="lerobot/smolvla_base",
+        policy_type="smolvla",
+        device="cuda",
+    )
+)
 
 with emb:  # guarantees disconnect (and torque-off) even if the eval raises
-    (log,) = eval(task, pol, emb,
-                  approver=ClampApprover(emb.info.action_space),
-                  before_scoring=grade_trial)  # records the verdict before scoring
+    (log,) = eval(
+        task, pol, emb, approver=ClampApprover(emb.info.action_space), before_scoring=grade_trial
+    )  # records the verdict before scoring
 print(log.status, log.results.metrics)
 ```
 
