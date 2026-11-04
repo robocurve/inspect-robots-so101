@@ -52,7 +52,7 @@ uv pip install "inspect-robots-so101[lerobot] @ git+https://github.com/robocurve
 
 - `lerobot` → `lerobot[feetech]` (torch, the policy, and the SO-ARM driver).
 - The `lerobot` extra needs Python ≥ 3.12 (lerobot ≥ 0.5's floor). On
-  3.10/3.11 the extra silently resolves to *nothing*: the core package still
+  3.11 the extra silently resolves to *nothing*: the core package still
   imports, but no torch/lerobot is installed and hardware runs will fail.
 
 Then pick a checkpoint. Any LeRobot policy trained on your SO-ARM works, e.g. the
