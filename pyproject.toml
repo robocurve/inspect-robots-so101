@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "inspect-robots-so101"
 dynamic = ["version", "readme"]
 description = "Inspect Robots adapters for LeRobot SO-ARM followers (SO-100/SO-101) driven by LeRobot policies."
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "RoboCurve" }]
@@ -25,8 +25,8 @@ dependencies = ["inspect-robots>=0.25", "numpy>=1.24"]
 # Real SO-ARM driver + in-process LeRobot policy inference (torch + the checkpoint).
 # `lerobot[feetech]` pulls the Feetech motor bus the SO follower uses. lerobot>=0.5
 # requires Python>=3.12, so the extra is gated to 3.12+ (the numpy-only core still
-# imports on 3.10/3.11 — the hardware extra just isn't installable there). Without
-# this marker `uv`'s universal resolution fails on the 3.10/3.11 splits.
+# imports on 3.11 — the hardware extra just isn't installable there). Without
+# this marker `uv`'s universal resolution fails on the 3.11 split.
 # Capped <0.7: the inference seam relies on internal-ish lerobot modules
 # (async_inference.helpers, datasets.feature_utils) whose paths already moved once
 # within 0.5.x and again in 0.6; the `lerobot-seam` CI job validates the pin before
@@ -39,7 +39,7 @@ dev = [
     "ruff>=0.6",
     "mypy>=1.11",
     "pre-commit>=3.5",
-    # numpy 2.5.0's type stubs use 3.12-only syntax that mypy (python_version 3.10)
+    # numpy 2.5.0's type stubs use 3.12-only syntax that mypy (python_version 3.11)
     # rejects; pin the 2.4.x line for a deterministic dev/CI gate (runtime is free).
     "numpy<2.5",
 ]
@@ -82,7 +82,7 @@ fallback_version = "0.0.0"
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
@@ -96,7 +96,7 @@ ignore = ["D105", "D107"]
 known-first-party = ["inspect_robots_so101"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 strict = true
 files = ["src/inspect_robots_so101"]
 
