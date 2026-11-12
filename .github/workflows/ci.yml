@@ -60,7 +60,8 @@ jobs:
   # Real-import guard for the lazily-imported lerobot seam. The unit tests fake
   # these modules (sys.modules), so only this job catches upstream drift in the
   # import paths / symbols the seam code relies on (lerobot.policies.factory,
-  # lerobot.async_inference.helpers, lerobot.datasets.*, the SO follower driver).
+  # lerobot feature_utils, the SO follower driver), and it is the only place the
+  # torch-only obs-prep port (_raw_to_policy_observation) actually runs.
   # lerobot needs Python >= 3.12; UV_TORCH_BACKEND=cpu avoids the multi-GB CUDA torch.
   lerobot-seam:
     name: lerobot seam imports (py3.12)
@@ -85,21 +86,25 @@ jobs:
         run: |
           uv run python - <<'PY'
           # Exactly the imports the lazy seams perform at runtime.
+          from types import SimpleNamespace
+
+          import numpy as np
           import torch
 
-          from lerobot.async_inference.helpers import raw_observation_to_observation
           from lerobot.policies.factory import get_policy_class, make_pre_post_processors
           from lerobot.robots.so_follower import SOFollower
           from lerobot.robots.so_follower.config_so_follower import SOFollowerRobotConfig
 
+          from inspect_robots_so101 import packing
           from inspect_robots_so101.config import LeRobotPolicyConfig, SOArmConfig
           from inspect_robots_so101.policy import (
               _hw_observation_features,
-              _import_hw_to_dataset_features,
+              _import_feature_utils,
+              _raw_to_policy_observation,
           )
 
           # The version-tolerant import must resolve against the installed lerobot.
-          hw_to_dataset_features = _import_hw_to_dataset_features()
+          hw_to_dataset_features, build_dataset_frame = _import_feature_utils()
 
           # Construct the config objects the seams construct (no hardware touched).
           policy_cfg = LeRobotPolicyConfig()
@@ -109,12 +114,42 @@ jobs:
               _hw_observation_features(policy_cfg), "observation", use_video=False
           )
           assert "observation.state" in features, features
+
+          # Build the driver without connect(): the motor bus constructor resolves
+          # each motor model (lerobot >= 0.7: via rustypot), so a missing backend or
+          # an unknown sts3215 fails here with no hardware.
+          robot = SOFollower(SOFollowerRobotConfig(port="/dev/null"))
+
+          # Run the obs-prep port against real torch, for uint8 and float32 frames.
+          h, w = policy_cfg.cam_height, policy_cfg.cam_width
+          img_feats = {
+              f"observation.images.{cam}": SimpleNamespace(shape=(3, 224, 224))
+              for cam in policy_cfg.cameras
+          }
+          for dtype in (np.uint8, np.float32):
+              raw = {key: float(i) for i, key in enumerate(packing.motor_keys())}
+              for cam in policy_cfg.cameras:
+                  frame = np.random.default_rng(0).integers(0, 256, (h, w, 3))
+                  raw[cam] = frame.astype(dtype) if dtype is np.uint8 else frame.astype(dtype) / 255
+              raw["task"] = "pick"
+              obs = _raw_to_policy_observation(raw, features, img_feats, build_dataset_frame)
+              assert obs["observation.state"].shape == (1, len(packing.motor_keys())), obs
+              assert obs["observation.state"].tolist()[0] == list(range(6)), obs
+              for key in img_feats:
+                  img = obs[key]
+                  assert img.shape == (1, 3, 224, 224), (key, img.shape)
+                  assert img.dtype == torch.float32, img.dtype
+                  assert 0.0 <= float(img.min()) and float(img.max()) <= 1.0
+                  assert img.is_contiguous()
+              assert obs["task"] == "pick"
+              assert set(obs) == {"observation.state", "task", *img_feats}, set(obs)
+
           print("lerobot seam OK:", torch.__version__)
           print("  get_policy_class:", get_policy_class)
           print("  make_pre_post_processors:", make_pre_post_processors)
-          print("  raw_observation_to_observation:", raw_observation_to_observation)
           print("  hw_to_dataset_features:", hw_to_dataset_features)
-          print("  SOFollower:", SOFollower, "| config:", type(robot_cfg).__name__)
+          print("  build_dataset_frame:", build_dataset_frame)
+          print("  SOFollower:", type(robot).__name__, "| bus:", type(robot.bus).__name__)
           PY
 
   # Dependency hygiene: the package must import with ONLY its runtime deps
