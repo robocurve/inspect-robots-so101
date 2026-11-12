@@ -20,6 +20,7 @@ from inspect_robots.scene import Scene
 from inspect_robots.types import Observation
 
 from inspect_robots_so101 import packing
+from inspect_robots_so101 import policy as policy_mod
 from inspect_robots_so101.config import LeRobotPolicyConfig
 from inspect_robots_so101.policy import LeRobotPolicy
 
@@ -257,11 +258,21 @@ def _install_lerobot_fakes(
         calls["hw_use_video"] = use_video
         return {"observation.state": {"names": [k for k in hw if k.endswith(".pos")]}}
 
-    def raw_observation_to_observation(raw: Any, feats: Any, img_feats: Any) -> Any:
+    def build_dataset_frame(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("only called by the real _raw_to_policy_observation")
+
+    calls["build_dataset_frame"] = build_dataset_frame
+
+    def raw_to_policy_observation(raw: Any, feats: Any, img_feats: Any, build: Any) -> Any:
+        # Obs prep needs real torch (pragma'd; run by the lerobot-seam CI job), so
+        # record the wiring here instead.
         calls["raw_obs"] = raw
         calls["raw_features"] = feats
         calls["raw_image_features"] = img_feats
+        calls["raw_build"] = build
         return {"prepared": True}
+
+    monkeypatch.setattr(policy_mod, "_raw_to_policy_observation", raw_to_policy_observation)
 
     torch_mod = ModuleType("torch")
     torch_mod.no_grad = nullcontext  # type: ignore[attr-defined]
@@ -276,14 +287,9 @@ def _install_lerobot_fakes(
     factory = ModuleType("lerobot.policies.factory")
     factory.get_policy_class = get_policy_class  # type: ignore[attr-defined]
     factory.make_pre_post_processors = make_pre_post_processors  # type: ignore[attr-defined]
-    async_inference = ModuleType("lerobot.async_inference")
-    helpers = ModuleType("lerobot.async_inference.helpers")
-    helpers.raw_observation_to_observation = raw_observation_to_observation  # type: ignore[attr-defined]
     datasets = ModuleType("lerobot.datasets")
     lerobot.policies = policies  # type: ignore[attr-defined]
     policies.factory = factory  # type: ignore[attr-defined]
-    lerobot.async_inference = async_inference  # type: ignore[attr-defined]
-    async_inference.helpers = helpers  # type: ignore[attr-defined]
     lerobot.datasets = datasets  # type: ignore[attr-defined]
 
     modules = {
@@ -291,8 +297,6 @@ def _install_lerobot_fakes(
         "lerobot": lerobot,
         "lerobot.policies": policies,
         "lerobot.policies.factory": factory,
-        "lerobot.async_inference": async_inference,
-        "lerobot.async_inference.helpers": helpers,
         "lerobot.datasets": datasets,
     }
     if feature_layout == "v060":
@@ -302,6 +306,7 @@ def _install_lerobot_fakes(
         utils = ModuleType("lerobot.utils")
         feature_utils_mod = ModuleType("lerobot.utils.feature_utils")
         feature_utils_mod.hw_to_dataset_features = hw_to_dataset_features  # type: ignore[attr-defined]
+        feature_utils_mod.build_dataset_frame = build_dataset_frame  # type: ignore[attr-defined]
         utils.feature_utils = feature_utils_mod  # type: ignore[attr-defined]
         lerobot.utils = utils  # type: ignore[attr-defined]
         modules["lerobot.utils"] = utils
@@ -312,6 +317,7 @@ def _install_lerobot_fakes(
         monkeypatch.delitem(sys.modules, "lerobot.utils", raising=False)
         feature_utils_mod = ModuleType("lerobot.datasets.feature_utils")
         feature_utils_mod.hw_to_dataset_features = hw_to_dataset_features  # type: ignore[attr-defined]
+        feature_utils_mod.build_dataset_frame = build_dataset_frame  # type: ignore[attr-defined]
         datasets.feature_utils = feature_utils_mod  # type: ignore[attr-defined]
         modules["lerobot.datasets.feature_utils"] = feature_utils_mod
     elif feature_layout == "v050":
@@ -322,6 +328,7 @@ def _install_lerobot_fakes(
         monkeypatch.delitem(sys.modules, "lerobot.datasets.feature_utils", raising=False)
         utils_mod = ModuleType("lerobot.datasets.utils")
         utils_mod.hw_to_dataset_features = hw_to_dataset_features  # type: ignore[attr-defined]
+        utils_mod.build_dataset_frame = build_dataset_frame  # type: ignore[attr-defined]
         datasets.utils = utils_mod  # type: ignore[attr-defined]
         modules["lerobot.datasets.utils"] = utils_mod
     else:
@@ -362,14 +369,15 @@ def test_default_predict_wires_lerobot(monkeypatch: pytest.MonkeyPatch) -> None:
     assert hw["front"] == (4, 4, 3)
     assert calls["hw_prefix"] == "observation"
     assert calls["hw_use_video"] is False
-    # Obs prep delegated to lerobot's raw_observation_to_observation with the raw
-    # payload, the synthesized features, and the checkpoint's image features.
+    # Obs prep gets the raw payload, the synthesized features, the checkpoint's
+    # image features, and build_dataset_frame from the same lerobot module.
     raw = calls["raw_obs"]
     assert raw["task"] == "grab it"
     assert [raw[k] for k in packing.motor_keys()] == [0.0] * 6
     assert raw["front"].shape == (4, 4, 3)
     assert calls["raw_features"] == {"observation.state": {"names": list(packing.motor_keys())}}
     assert calls["raw_image_features"] == calls["policy_config"].image_features
+    assert calls["raw_build"] is calls["build_dataset_frame"]
     # Prepared obs -> preprocessor -> predict_action_chunk -> per-step postprocess.
     assert calls["preprocessed"] == {"prepared": True}
     assert calls["predict_batch"] == {"batch": {"prepared": True}}

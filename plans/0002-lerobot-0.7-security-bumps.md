@@ -14,7 +14,7 @@ is excluded by lerobot 0.6.1's own pins, and we cap `lerobot<0.7`.
 | virtualenv (via pre-commit) | 21.14.9 | needs `packaging>=26.3`; lerobot pins `packaging<26` |
 
 lerobot 0.7.0 relaxes all four (`Pillow<14`, `torch<2.16`, `setuptools<85`,
-packaging unpinned to <26). Raising the cap to `<0.8` resolves the lock to
+`packaging<27`). Raising the cap to `<0.8` resolves the lock to
 lerobot 0.7.0, Pillow 13.0.0, torch 2.15.0, setuptools 84.2.1, virtualenv 21.15.6.
 Dependabot PR #33 (Pillow only) cannot resolve for the same reason; close it.
 
@@ -40,9 +40,11 @@ Everything else the seams use is unchanged in 0.7 (verified by diffing the
   postprocessor_overrides=)`: same signature.
 - `SOFollower` / `SOFollowerRobotConfig`: same import paths; `get_observation`
   still uses `cam.read_latest()`, `send_action` / `connect` / `disconnect`
-  unchanged in signature. Internals moved to `SerialMotorsBus` (feetech extra
-  now pulls `serial-motors`), calibration UX changed (not used by us beyond
-  `connect()`).
+  unchanged in signature. **But the motor stack underneath is new**:
+  `SOFollower` now builds a `SerialMotorsBus` backed by the `rustypot` Rust
+  package instead of `FeetechMotorsBus`, and `is_calibrated` was
+  reimplemented. Every read, write, unit conversion and calibration check on
+  the arm runs through new upstream code.
 
 ## Change
 
@@ -96,36 +98,51 @@ removed it.
   `hw_to_dataset_features`, a `PolicyFeature`-like shape `(3, 224, 224)`; assert
   state shape `(1, 6)`, image shape `(1, 3, 224, 224)`, float32 in [0, 1],
   `task` carried. This is the drift guard the removed import used to provide.
+- Same smoke with a float32 frame, to cover the non-uint8 branch.
+- Construct `SOFollower(SOFollowerRobotConfig(port="/dev/null"))` without
+  `connect()`: the bus constructor resolves each motor model through
+  `rustypot`, so a missing wheel or unknown `sts3215` fails here.
 - Update the comment at line ~63.
 
 ### Tests (`tests/test_policy.py`)
 
 - Remove the `lerobot.async_inference` fake modules; the fake `lerobot` now
   needs `build_dataset_frame` in each `feature_utils` layout.
-- The existing `_default_predict` wiring test keeps asserting preprocessor /
-  `predict_action_chunk` / postprocessor flow; the obs-prep assertion changes
-  from "called lerobot helper with (raw, feats, img_feats)" to checking the
-  dict handed to the preprocessor.
-- `_raw_to_policy_observation` needs torch, which tests don't have. Keep it
-  covered with a minimal fake `torch` in `sys.modules` (as the existing tests
-  fake torch for `no_grad`/`stack`), or mark the tensor body `# pragma: no
-  cover` and rely on the CI smoke above. Prefer the fake if it stays small;
-  coverage gate is 100%.
+- The existing `_default_predict` wiring tests install a fake torch without
+  `tensor`/`permute`/`interpolate`, so they monkeypatch
+  `policy._raw_to_policy_observation` with a recording stub and assert it got
+  `(raw, lerobot_features, policy_image_features)` and that its return value is
+  what reached the preprocessor.
+- The import helper is tested in all three layouts (0.5.0 `datasets.utils`,
+  0.5.1 `datasets.feature_utils`, >=0.6 `utils.feature_utils`); verified that
+  `build_dataset_frame` sits beside `hw_to_dataset_features` in each wheel.
+- `_raw_to_policy_observation` needs real torch, which tests don't have. Mark
+  it `# pragma: no cover` (a fake torch with permute/interpolate/dtype would
+  only test itself) and rely on the CI smoke above, which runs it against real
+  torch + lerobot for both uint8 and float32 frames.
 
 ### Docs
 
+`config.py:42` comment: "v0.5 through v0.6" → through v0.7.
+
 Root `CLAUDE.md` and `src/inspect_robots_so101/CLAUDE.md`: replace
 "lerobot's own `raw_observation_to_observation`" with the new helper and why.
-README install notes: no change needed (extra name unchanged). Changelog: repo
+`src/inspect_robots_so101/CLAUDE.md` "Coverage discipline": add the new
+pragma to the allowed list (needs real torch; covered by the `lerobot-seam`
+smoke). README.md:205: "lerobot v0.5–0.6" → "v0.5–0.7" (0.7 still aliases
+`SO100Follower = SO101Follower = SOFollower`). Changelog: repo
 has no `changelog.d/`; none.
 
 ## Out of scope
 
 - Bumping the lerobot floor. 0.5.x/0.6.x keep working (helper only uses
   `build_dataset_frame`, present in all three layouts).
-- Real-hardware validation: no SO-101 rig in CI. Risk is limited to obs prep,
-  which is a line-for-line port; the CI smoke checks shapes/dtypes against real
-  lerobot + torch.
+- Real-hardware validation: no SO-101 rig in CI. Obs prep is a line-for-line
+  port checked by the CI smoke, but the 0.7 motor bus rewrite is only
+  constructor-tested. Before the next release, a rig check is required:
+  `connect()` against existing calibration files (`is_calibrated` true, no
+  recalibration prompt), a few small moves, positions read back in the same
+  units as on 0.6.1.
 
 ## Verification
 

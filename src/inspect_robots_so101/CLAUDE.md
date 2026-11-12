@@ -10,7 +10,7 @@ The package is `mypy --strict` clean, ships `py.typed`, and is 100%-covered.
 | `packing.py` | **Pure** 6-D SO-ARM packing: the single source of truth for the motor order (`shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll, gripper`) and how the flat vector maps to LeRobot's `"<motor>.pos"` dicts. `to_action_dict`/`from_obs_dict`/`validate_dim`, config-derived `state_spec`, `STATE_KEY`, `MOTORS`. No optional deps. |
 | `config.py` | `SOArmConfig` / `LeRobotPolicyConfig` (frozen, `from_kwargs` for CLI scalars) + shared `action_box()` / `observation_space()` / `ACTION_SEMANTICS` so both components declare an **identical** contract. `SOArmConfig` validates the optional settle tolerance, timeout, and per-trial timeout budget. |
 | `operator.py` | `OperatorIO` (injectable stdin/stdout) for the readiness prompt; `default_poll_end` (real TTY poll, `# pragma: no cover`). Verdicts and grader notes are the framework prompt's job. |
-| `policy.py` | `LeRobotPolicy` — wraps a LeRobot checkpoint. `act()` validates frames against the configured resolution, builds the RAW robot payload (`"<motor>.pos"` floats, frames keyed by camera name, `task`), runs the injectable `predict_fn`, truncates to `chunk_size`, returns an `ActionChunk`. Real in-process inference is `_default_predict` (lazy torch + lerobot; obs prep via lerobot's own `raw_observation_to_observation`) — NOT pragma'd: it is covered by `sys.modules`-fake tests, and its real import paths are validated by the `lerobot-seam` CI job. |
+| `policy.py` | `LeRobotPolicy` — wraps a LeRobot checkpoint. `act()` validates frames against the configured resolution, builds the RAW robot payload (`"<motor>.pos"` floats, frames keyed by camera name, `task`), runs the injectable `predict_fn`, truncates to `chunk_size`, returns an `ActionChunk`. Real in-process inference is `_default_predict` (lazy torch + lerobot; obs prep via `_raw_to_policy_observation`, a line-for-line port of lerobot 0.6's `raw_observation_to_observation`, which 0.7 removed) — NOT pragma'd: it is covered by `sys.modules`-fake tests, and its real import paths are validated by the `lerobot-seam` CI job. |
 | `embodiment.py` | `SOArmEmbodiment` — LeRobot SO follower driver. Clamp backstop, optional delta→abs, optional settle-before-observe against the driver's accepted action (arm joints only), `SELF_PACED` pacing, operator-keypress episode end (`operator_end`), context manager (`with emb:` guarantees `close()`; `close()` clears the handle even if disconnect raises). The driver's `get_observation` yields motor positions and cameras; `_observe()` validates every frame against the configured resolution. Hardware seam (`_default_driver_factory`) is injected/pragma'd; it connects with `calibrate=False` and fails fast via the tested `_check_calibrated` (never lerobot's blocking interactive calibration). |
 | `preflight.py` | `build` / `run_preflight` + the `inspect-robots-so101-preflight` CLI: run the compat check, print, exit non-zero on errors. |
 | `__init__.py` | Public API fenced by `__all__` (guarded by `tests/test_api_snapshot.py`). |
@@ -27,7 +27,9 @@ The package is `mypy --strict` clean, ships `py.typed`, and is 100%-covered.
   freely — and keeps `import inspect_robots_so101` free of torch.
 - **Coverage discipline:** the only uncoverable code is hardware/TTY I/O,
   isolated in `# pragma: no cover` seams (`_default_driver_factory`,
-  `default_poll_end`, the `_require_driver` pre-reset guard, `__main__`).
+  `default_poll_end`, the `_require_driver` pre-reset guard, `__main__`), plus
+  `_raw_to_policy_observation`, which needs real torch tensor ops; the
+  `lerobot-seam` CI job runs it against real torch + lerobot instead.
   `_default_predict` is NOT pragma'd — it is exercised with `sys.modules` fakes
   (see `tests/test_policy.py`), and the `lerobot-seam` CI job imports the real
   lerobot symbols it relies on. Prefer that pattern (fake the modules, assert the
