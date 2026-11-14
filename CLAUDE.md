@@ -62,7 +62,7 @@ the configured cameras, packed `joint_pos` state). That makes
 ## Safety invariants (do not weaken)
 
 - `SOArmEmbodiment.step()` **always clamps** to `SOArmConfig.joint_low/high` before
-  commanding, independent of any `Approver` (and on top of LeRobot's
+  commanding, independent of any `Guard` (and on top of LeRobot's
   `max_relative_target`). This is the last line of defense.
 - LeRobot's postprocessor already returns native motor units, so the embodiment
   does **not** renormalize actions. It commands clamped values verbatim. Keep
