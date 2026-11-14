@@ -34,5 +34,5 @@ The package is `mypy --strict` clean, ships `py.typed`, and is 100%-covered.
   (see `tests/test_policy.py`), and the `lerobot-seam` CI job imports the real
   lerobot symbols it relies on. Prefer that pattern (fake the modules, assert the
   wiring, guard the imports in CI) over new pragmas.
-- **Safety lives in `step()`**, not in an optional Approver — see the root
+- **Safety lives in `step()`**, not in an optional `Guard` — see the root
   `CLAUDE.md`.

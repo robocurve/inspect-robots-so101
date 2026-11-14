@@ -4,7 +4,7 @@ Wraps the LeRobot SO follower driver (SO-100 / SO-101). Designed for real-robot
 reality:
 
 * **Safety backstop** — every command is clamped to the configured joint limits
-  inside :meth:`step`, *independently* of any Inspect Robots ``Approver`` (so unclamped
+  inside :meth:`step`, *independently* of any Inspect Robots ``Guard`` (so unclamped
   model outputs can never reach the motors). This is layered on top of LeRobot's
   own ``max_relative_target`` slew limit, which the driver applies.
 * **Operator-in-the-loop episode end** — there is no privileged success oracle;

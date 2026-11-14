@@ -93,7 +93,7 @@ config, and the policy at a checkpoint:
 
 ```python
 from inspect_robots import Scene, Task, eval, operator_scorer
-from inspect_robots.approver import ClampApprover
+from inspect_robots.guard import ClampGuard
 from inspect_robots_so101 import LeRobotPolicy, SOArmEmbodiment, SOArmConfig, LeRobotPolicyConfig
 from lerobot.cameras.opencv import OpenCVCameraConfig  # your camera backend
 
@@ -131,7 +131,7 @@ pol = LeRobotPolicy(
 
 with emb:  # guarantees disconnect (and torque-off) even if the eval raises
     (log,) = eval(
-        task, pol, emb, approver=ClampApprover(emb.info.action_space), before_scoring=grade_trial
+        task, pol, emb, guard=ClampGuard(emb.info.action_space), before_scoring=grade_trial
     )  # records the verdict before scoring
 print(log.status, log.results.metrics)
 ```
@@ -168,12 +168,12 @@ raises `EmbodimentFault` with instructions to use a real TTY or inject
 ## Safety
 
 - **Hard clamp backstop.** Every command is clipped to `SOArmConfig.joint_low/high`
-  *inside* `step()`, independent of any Inspect Robots `Approver` and on top of LeRobot's
+  *inside* `step()`, independent of any Inspect Robots `Guard` and on top of LeRobot's
   own `max_relative_target` slew limit. Unclamped model outputs can never reach
   the motors. **Set these to your real, calibrated SO-ARM joint limits** (the
   defaults are conservative placeholders: joints ±180° in degree mode or ±100
   in normalized mode, with the gripper at 0–100 in both modes).
-- **Use `ClampApprover`** on hardware for a second layer.
+- **Use `ClampGuard`** on hardware for a second layer.
 - **Native units, no renormalization.** The embodiment commands the policy
   output verbatim after the clamp. Set the same `use_degrees` value on
   `SOArmConfig` and `LeRobotPolicyConfig`: `True` uses degrees for arm joints,
