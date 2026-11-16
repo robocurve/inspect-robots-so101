@@ -11,7 +11,7 @@ from typing import Any
 
 import numpy as np
 import pytest
-from inspect_robots import Scene, Task, TrialRecord, operator_scorer
+from inspect_robots import Record, Scene, Task, operator_scorer
 from inspect_robots import eval as rl_eval
 
 from inspect_robots_so101 import packing
@@ -41,7 +41,7 @@ def _predict(_obs: Any) -> np.ndarray:
     return np.zeros((1, 6), dtype=np.float32)  # one-action chunk of zeros
 
 
-def _grade_yes(record: TrialRecord, scene: Scene) -> None:
+def _grade_yes(record: Record, scene: Scene) -> None:
     del scene
     assert record.termination_reason == "operator_end"
     record.operator_judgement = "y"
